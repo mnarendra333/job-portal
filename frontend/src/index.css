@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-naukri-bg text-naukri-text antialiased font-sans;
+}
+
+.app-gradient {
+  background: linear-gradient(135deg, #121224 0%, #275df5 55%, #457eff 100%);
+}
+
+.card {
+  @apply bg-white rounded-lg border border-naukri-border shadow-naukri;
+}
+
+.naukri-job-card {
+  @apply bg-white rounded-lg border border-naukri-border shadow-naukri p-5 transition-shadow hover:shadow-md;
+}
+
+.naukri-job-title {
+  @apply text-lg font-semibold text-naukri-text leading-snug block;
+}
+
+.naukri-company-name {
+  @apply text-sm font-semibold text-naukri-text;
+}
+
+.naukri-logo-box {
+  @apply w-14 h-14 rounded border border-naukri-border bg-white flex items-center justify-center overflow-hidden;
+}
+
+.naukri-checkbox {
+  @apply w-4 h-4 rounded border-naukri-border text-naukri-blue focus:ring-naukri-blue;
+}
+
+.naukri-action-btn {
+  @apply inline-flex items-center gap-1 text-sm text-naukri-muted hover:text-naukri-text transition-colors;
+}
+
+.naukri-tab {
+  @apply pb-3 text-sm font-medium text-naukri-muted border-b-2 border-transparent hover:text-naukri-text cursor-pointer;
+}
+
+.naukri-tab-active {
+  @apply text-naukri-text border-naukri-text;
+}
+
+.naukri-btn-primary {
+  @apply px-5 py-2 rounded-md bg-naukri-blue text-white text-sm font-semibold hover:bg-naukri-blue-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+}
+
+.naukri-btn-outline {
+  @apply px-4 py-1.5 rounded-md border border-naukri-blue text-naukri-blue text-sm font-medium hover:bg-blue-50 transition-colors;
+}
+
+.naukri-sidebar-card {
+  @apply bg-white rounded-lg border border-naukri-border shadow-naukri p-5;
+}
+
+.naukri-pref-tag {
+  @apply inline-flex items-center px-2.5 py-1 rounded bg-slate-100 text-sm text-naukri-text;
+}
+
+.auth-page {
+  @apply min-h-screen bg-naukri-bg flex;
+}
+
+.auth-panel-brand {
+  @apply hidden lg:flex lg:w-[44%] xl:w-[48%] flex-col justify-between p-10 xl:p-14 text-white relative overflow-hidden;
+  background: linear-gradient(145deg, #121224 0%, #1a237e 45%, #457eff 100%);
+}
+
+.auth-panel-form {
+  @apply flex-1 flex items-center justify-center px-4 py-10 sm:px-8;
+}
+
+.auth-card {
+  @apply w-full max-w-md bg-white rounded-xl border border-naukri-border shadow-naukri p-8 sm:p-10;
+}
+
+.auth-input {
+  @apply w-full border border-naukri-border rounded-md px-3.5 py-2.5 text-sm text-naukri-text placeholder:text-slate-400
+    focus:outline-none focus:ring-2 focus:ring-naukri-blue/25 focus:border-naukri-blue transition-shadow;
+}
+
+.auth-label {
+  @apply block text-sm font-medium text-naukri-text mb-1.5;
+}
+
+.auth-divider {
+  @apply relative my-6 text-center;
+}
+
+.auth-divider::before {
+  content: '';
+  @apply absolute left-0 right-0 top-1/2 h-px bg-naukri-border;
+}
+
+.auth-divider span {
+  @apply relative bg-white px-3 text-xs uppercase tracking-wide text-naukri-muted;
+}
+
+.oauth-btn {
+  @apply w-full inline-flex items-center justify-center gap-3 px-4 py-2.5 rounded-md border border-naukri-border
+    bg-white text-sm font-medium text-naukri-text hover:bg-slate-50 hover:border-slate-300
+    focus:outline-none focus:ring-2 focus:ring-naukri-blue/20 transition-all;
+}
+
+.badge-direct {
+  @apply inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800;
+}
+
+.badge-agency {
+  @apply inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800;
+}

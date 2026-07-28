@@ -1,0 +1,12 @@
+# Git account scripts moved to shared folder:
+#   ~/Documents/checkouts/git_scripts
+#
+# One-time setup:
+#   ~/Documents/checkouts/git_scripts/setup-github-accounts.sh
+#
+# Switch account in this repo:
+#   git-account personal
+#   (after adding alias from git_scripts/git-account-alias.snippet to ~/.zshrc)
+#
+# Or:
+#   ~/Documents/checkouts/git_scripts/git-use-account.sh personal

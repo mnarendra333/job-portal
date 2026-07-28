@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply text-slate-900 antialiased;
+}
+
+.app-surface {
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(30, 58, 95, 0.05), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(37, 99, 235, 0.04), transparent 50%);
+}
+
+.content-card {
+  @apply bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200/80 shadow-sm;
+}
