@@ -8,12 +8,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pathlib import Path
-
-from sqlalchemy import delete, func, select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+try:
+    from sqlalchemy import delete, func, select, text
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+except ImportError as e:
+    print("Missing dependencies. Use the project venv:", file=sys.stderr)
+    print("  cd backend && ./scripts/seed.sh --reset", file=sys.stderr)
+    print("  # or: PYTHONPATH=. .venv/bin/python scripts/seed_demo.py --reset", file=sys.stderr)
+    raise SystemExit(1) from e
 
 from app.core.config import settings
+from app.core.database import create_async_engine_from_url
 from app.core.security import hash_password
 from app.models import (
     ApplicationSource,
@@ -124,7 +129,7 @@ async def get_or_create_skill(session: AsyncSession, name: str) -> Skill:
 
 
 async def seed(reset: bool = False) -> None:
-    engine = create_async_engine(settings.database_url, echo=False)
+    engine = create_async_engine_from_url(settings.database_url, echo=False)
     Session = async_sessionmaker(engine, expire_on_commit=False)
 
     async with Session() as session:

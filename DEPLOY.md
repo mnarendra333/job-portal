@@ -55,13 +55,14 @@ From your laptop (with Python 3.12):
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 
 export DATABASE_URL="postgresql://YOUR_NEON_CONNECTION_STRING"
-# App auto-converts to postgresql+asyncpg://
+# Full Neon URL with ?sslmode=require is OK — asyncpg SSL is handled automatically
 
-PYTHONPATH=. python scripts/seed_demo.py --reset
+./scripts/seed.sh --reset
+# Uses .venv/bin/python — do NOT use plain `python` if your shell aliases it to system Python
 ```
 
 You should see demo users and jobs created. Demo logins:

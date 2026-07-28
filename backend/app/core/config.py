@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         if isinstance(v, str) and v.startswith("postgresql://") and "+asyncpg" not in v:
             return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
+
     secret_key: str = "dev-secret-change-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
