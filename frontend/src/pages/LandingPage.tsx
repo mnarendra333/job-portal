@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import JobCard from '@/components/jobs/JobCard';
+import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import type { JobListItem } from '@/types';
 
 export default function LandingPage() {
+  const { user } = useAuth();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
 
   useEffect(() => {
@@ -20,15 +22,34 @@ export default function LandingPage() {
             Employers post jobs. Candidates apply directly. Agencies upload candidate resumes in bulk — all in one portal.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <Link to="/jobs" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">Browse Jobs</Link>
-            <Link to="/register" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">Get Started</Link>
-            <Link to="/login" className="px-6 py-3 text-white/90 underline">Sign in</Link>
+            <Link to="/jobs" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
+              Browse Jobs
+            </Link>
+            {user ? (
+              <Link to="/app" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/register" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
+                  Get Started
+                </Link>
+                <Link to="/login" className="px-6 py-3 text-white/90 underline">
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
+          {user && (
+            <p className="mt-6 text-white/80 text-sm">
+              Welcome back, <span className="font-semibold text-white">{user.full_name}</span>
+            </p>
+          )}
         </div>
       </section>
 
       <section className="max-w-6xl mx-auto px-4 py-16">
-        <h2 className="text-2xl font-bold mb-8 text-center">How it works</h2>
+        <h2 className="text-2xl font-bold mb-8 text-center text-naukri-text">How it works</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {[
             { title: 'Employers post jobs', desc: 'Recruiters create and publish job openings with skills, salary, and location.', color: 'bg-blue-50 border-blue-200' },
@@ -52,7 +73,7 @@ export default function LandingPage() {
           {jobs.slice(0, 5).map((job) => (
             <JobCard key={job.id} job={job} />
           ))}
-          {jobs.length === 0 && <p className="text-naukri-muted">No jobs posted yet. Run setup to load demo data.</p>}
+          {jobs.length === 0 && <p className="text-naukri-muted">No jobs posted yet.</p>}
         </div>
       </section>
     </div>

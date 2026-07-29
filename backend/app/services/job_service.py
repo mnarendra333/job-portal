@@ -292,6 +292,9 @@ async def list_published_jobs(
     keyword: str | None = None,
     location: str | None = None,
     employment_type: str | None = None,
+    skill: str | None = None,
+    min_experience: int | None = None,
+    max_experience: int | None = None,
 ) -> list[JobListItem]:
     q = select(Job).where(Job.status == JobStatus.published)
     if keyword:
@@ -300,9 +303,16 @@ async def list_published_jobs(
         q = q.where(Job.location.ilike(f"%{location}%"))
     if employment_type:
         q = q.where(Job.employment_type == employment_type)
+    if min_experience is not None:
+        q = q.where((Job.experience_max.is_(None)) | (Job.experience_max >= min_experience))
+    if max_experience is not None:
+        q = q.where((Job.experience_min.is_(None)) | (Job.experience_min <= max_experience))
+    if skill:
+        q = q.join(JobSkill, JobSkill.job_id == Job.id).join(Skill, Skill.id == JobSkill.skill_id)
+        q = q.where(Skill.name.ilike(f"%{skill}%"))
     q = q.order_by(Job.published_at.desc().nullslast())
     result = await db.execute(q)
-    jobs = result.scalars().all()
+    jobs = result.scalars().unique().all()
     items = []
     for job in jobs:
         skills = await _job_skills(db, job.id)
@@ -327,6 +337,52 @@ async def list_published_jobs(
             skills=skills,
         ))
     return items
+
+
+async def list_job_locations(db: AsyncSession, q: str | None = None, limit: int = 15) -> list[str]:
+    stmt = (
+        select(Job.location)
+        .where(Job.status == JobStatus.published)
+        .distinct()
+    )
+    if q:
+        stmt = stmt.where(Job.location.ilike(f"%{q}%"))
+    stmt = stmt.order_by(Job.location).limit(limit)
+    result = await db.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
+async def get_job_filter_meta(db: AsyncSession) -> dict:
+    loc_result = await db.execute(
+        select(Job.location)
+        .where(Job.status == JobStatus.published)
+        .distinct()
+        .order_by(Job.location)
+    )
+    locations = [r[0] for r in loc_result.all()]
+
+    type_result = await db.execute(
+        select(Job.employment_type)
+        .where(Job.status == JobStatus.published)
+        .distinct()
+    )
+    employment_types = sorted({r[0].value for r in type_result.all()})
+
+    skill_result = await db.execute(
+        select(Skill.name)
+        .join(JobSkill, JobSkill.skill_id == Skill.id)
+        .join(Job, Job.id == JobSkill.job_id)
+        .where(Job.status == JobStatus.published)
+        .distinct()
+        .order_by(Skill.name)
+    )
+    skills = [r[0] for r in skill_result.all()]
+
+    return {
+        "locations": locations,
+        "employment_types": employment_types,
+        "skills": skills,
+    }
 
 
 async def list_my_jobs(db: AsyncSession, user: User) -> list[JobResponse]:

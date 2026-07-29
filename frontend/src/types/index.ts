@@ -31,6 +31,12 @@ export interface JobListItem {
   skills: string[];
 }
 
+export interface JobFilterMeta {
+  locations: string[];
+  employment_types: string[];
+  skills: string[];
+}
+
 export interface Job extends JobListItem {
   organization_id: string;
   posted_by: string;

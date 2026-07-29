@@ -17,6 +17,7 @@ from app.schemas import (
     CandidateProfileResponse,
     CandidateProfileUpdate,
     JobCreate,
+    JobFilterMeta,
     JobListItem,
     JobResponse,
     JobStatusUpdate,
@@ -97,14 +98,30 @@ async def oauth_linkedin(body: OAuthRequest, db: AsyncSession = Depends(get_db))
 
 
 # --- Public jobs ---
+@router.get("/jobs/locations", response_model=list[str])
+async def job_locations(q: str | None = None, db: AsyncSession = Depends(get_db)):
+    return await job_service.list_job_locations(db, q)
+
+
+@router.get("/jobs/filters", response_model=JobFilterMeta)
+async def job_filters(db: AsyncSession = Depends(get_db)):
+    data = await job_service.get_job_filter_meta(db)
+    return JobFilterMeta(**data)
+
+
 @router.get("/jobs", response_model=list[JobListItem])
 async def list_jobs(
     keyword: str | None = None,
     location: str | None = None,
     employment_type: str | None = None,
+    skill: str | None = None,
+    min_experience: int | None = None,
+    max_experience: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    return await job_service.list_published_jobs(db, keyword, location, employment_type)
+    return await job_service.list_published_jobs(
+        db, keyword, location, employment_type, skill, min_experience, max_experience
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)

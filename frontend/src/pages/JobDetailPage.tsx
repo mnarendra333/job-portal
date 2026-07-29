@@ -50,9 +50,8 @@ export default function JobDetailPage() {
   if (!job) return <div className="p-8 text-center text-naukri-muted">Loading job...</div>;
 
   return (
-    <div className="min-h-screen bg-naukri-bg">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <Link to="/jobs" className="text-sm text-naukri-blue hover:underline">← All jobs</Link>
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <Link to="/jobs" className="text-sm text-naukri-blue hover:underline">← All jobs</Link>
 
         <div className="naukri-job-card mt-4">
           <div className="flex justify-between gap-4">
@@ -116,7 +115,6 @@ export default function JobDetailPage() {
             <Link to="/login" className="text-naukri-blue font-medium hover:underline">Sign in →</Link>
           </div>
         )}
-      </div>
     </div>
   );
 }

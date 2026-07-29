@@ -59,14 +59,29 @@ export const api = {
     request<{ authorize_url: string }>(`/auth/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&state=jobs`),
   me: () => request<import('@/types').User>('/auth/me'),
   jobs: {
-    list: (params?: { keyword?: string; location?: string; employment_type?: string }) => {
+    list: (params?: {
+      keyword?: string;
+      location?: string;
+      employment_type?: string;
+      skill?: string;
+      min_experience?: number;
+      max_experience?: number;
+    }) => {
       const q = new URLSearchParams();
       if (params?.keyword) q.set('keyword', params.keyword);
       if (params?.location) q.set('location', params.location);
       if (params?.employment_type) q.set('employment_type', params.employment_type);
+      if (params?.skill) q.set('skill', params.skill);
+      if (params?.min_experience != null) q.set('min_experience', String(params.min_experience));
+      if (params?.max_experience != null) q.set('max_experience', String(params.max_experience));
       const qs = q.toString();
       return request<import('@/types').JobListItem[]>(`/jobs${qs ? `?${qs}` : ''}`);
     },
+    locations: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return request<string[]>(`/jobs/locations${qs}`);
+    },
+    filters: () => request<import('@/types').JobFilterMeta>('/jobs/filters'),
     get: (id: string) => request<import('@/types').Job>(`/jobs/${id}`),
     mine: () => request<import('@/types').Job[]>('/jobs/mine/list'),
     create: (data: Record<string, unknown>) =>

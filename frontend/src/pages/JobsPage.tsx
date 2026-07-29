@@ -1,15 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import JobCard from '@/components/jobs/JobCard';
+import JobFiltersSidebar, { type JobFilters } from '@/components/jobs/JobFiltersSidebar';
+import LocationAutocomplete from '@/components/jobs/LocationAutocomplete';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import type { JobListItem } from '@/types';
+import type { JobFilterMeta, JobListItem } from '@/types';
 
 type TabId = 'profile' | 'might_like' | 'preferences';
 
 const MAX_SELECT = 5;
 const HIDDEN_KEY = 'job_portal_hidden_jobs';
 const SAVED_KEY = 'job_portal_saved_jobs';
+
+const EMPTY_FILTERS: JobFilters = {
+  employmentType: '',
+  skill: '',
+  minExperience: null,
+  maxExperience: null,
+};
 
 function loadIds(key: string): Set<string> {
   try {
@@ -30,6 +39,8 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [keyword, setKeyword] = useState('');
   const [location, setLocation] = useState('');
+  const [sidebarFilters, setSidebarFilters] = useState<JobFilters>(EMPTY_FILTERS);
+  const [filterMeta, setFilterMeta] = useState<JobFilterMeta>({ locations: [], employment_types: [], skills: [] });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabId>('profile');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -38,14 +49,27 @@ export default function JobsPage() {
 
   const isSeeker = user?.role === 'job_seeker';
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
-    api.jobs.list({ keyword: keyword || undefined, location: location || undefined })
+    api.jobs.list({
+      keyword: keyword || undefined,
+      location: location || undefined,
+      employment_type: sidebarFilters.employmentType || undefined,
+      skill: sidebarFilters.skill || undefined,
+      min_experience: sidebarFilters.minExperience ?? undefined,
+      max_experience: sidebarFilters.maxExperience ?? undefined,
+    })
       .then(setJobs)
       .finally(() => setLoading(false));
-  };
+  }, [keyword, location, sidebarFilters]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    api.jobs.filters().then(setFilterMeta).catch(() => setFilterMeta({ locations: [], employment_types: [], skills: [] }));
+  }, []);
 
   const visibleJobs = useMemo(() => jobs.filter((j) => !hidden.has(j.id)), [jobs, hidden]);
 
@@ -102,119 +126,115 @@ export default function JobsPage() {
     navigate(`/jobs/${first}`);
   };
 
+  const clearFilters = () => {
+    setSidebarFilters(EMPTY_FILTERS);
+    setKeyword('');
+    setLocation('');
+  };
+
   return (
-    <div className="min-h-screen bg-naukri-bg">
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
-          <div>
-            <Link to="/" className="text-sm text-naukri-muted hover:text-naukri-blue mb-2 inline-block">← Home</Link>
-            <h1 className="text-xl font-bold text-naukri-text">Recommended jobs for you</h1>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            {isSeeker && (
-              <span className="text-sm text-naukri-muted">You can select upto {MAX_SELECT} jobs to apply</span>
-            )}
-            {isSeeker && (
-              <button
-                type="button"
-                className="naukri-btn-primary"
-                disabled={selected.size === 0}
-                onClick={applySelected}
-              >
-                Apply{selected.size > 0 ? ` (${selected.size})` : ''}
-              </button>
-            )}
-          </div>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+        <div>
+          <Link to="/" className="text-sm text-naukri-muted hover:text-naukri-blue mb-2 inline-block">← Home</Link>
+          <h1 className="text-xl font-bold text-naukri-text">Recommended jobs for you</h1>
+        </div>
+        <div className="flex items-center gap-4 flex-wrap">
+          {isSeeker && (
+            <span className="text-sm text-naukri-muted">You can select upto {MAX_SELECT} jobs to apply</span>
+          )}
+          {isSeeker && (
+            <button
+              type="button"
+              className="naukri-btn-primary"
+              disabled={selected.size === 0}
+              onClick={applySelected}
+            >
+              Apply{selected.size > 0 ? ` (${selected.size})` : ''}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="card p-4 mb-6 flex gap-3 flex-wrap items-start">
+        <input
+          className="auth-input flex-1 min-w-[160px]"
+          placeholder="Skills, designation, companies"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && load()}
+        />
+        <LocationAutocomplete
+          value={location}
+          onChange={setLocation}
+          onSelect={() => load()}
+          className="flex-1 min-w-[160px]"
+        />
+        <button type="button" onClick={load} className="naukri-btn-primary shrink-0">Search</button>
+      </div>
+
+      <div className="flex gap-6 flex-col xl:flex-row">
+        <div className="w-full xl:w-56 shrink-0 order-2 xl:order-1">
+          <JobFiltersSidebar
+            filters={sidebarFilters}
+            meta={filterMeta}
+            onChange={setSidebarFilters}
+            onApply={load}
+            onClear={clearFilters}
+          />
         </div>
 
-        <div className="card p-4 mb-6 flex gap-3 flex-wrap">
-          <input
-            className="border border-naukri-border rounded-md px-3 py-2 flex-1 min-w-[160px] text-sm focus:outline-none focus:ring-2 focus:ring-naukri-blue/30"
-            placeholder="Skills, designation, companies"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-          <input
-            className="border border-naukri-border rounded-md px-3 py-2 flex-1 min-w-[160px] text-sm focus:outline-none focus:ring-2 focus:ring-naukri-blue/30"
-            placeholder="Location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
-          <button type="button" onClick={load} className="naukri-btn-primary">Search</button>
-        </div>
+        <div className="flex-1 min-w-0 order-1 xl:order-2">
+          <div className="flex gap-6 border-b border-naukri-border mb-5 overflow-x-auto">
+            <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'profile' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('profile')}>
+              Profile ({visibleJobs.length})
+            </button>
+            <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'might_like' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('might_like')}>
+              You might like ({visibleJobs.length})
+            </button>
+            <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'preferences' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('preferences')}>
+              Preferences ({visibleJobs.filter((j) => j.skills.length >= 3).length})
+            </button>
+          </div>
 
-        <div className="flex gap-8 flex-col lg:flex-row">
-          <div className="flex-1 min-w-0">
-            <div className="flex gap-6 border-b border-naukri-border mb-5">
-              <button type="button" className={`naukri-tab ${tab === 'profile' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('profile')}>
-                Profile ({visibleJobs.length})
-              </button>
-              <button type="button" className={`naukri-tab ${tab === 'might_like' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('might_like')}>
-                You might like ({visibleJobs.length})
-              </button>
-              <button type="button" className={`naukri-tab ${tab === 'preferences' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('preferences')}>
-                Preferences ({visibleJobs.filter((j) => j.skills.length >= 3).length})
-              </button>
+          {loading ? (
+            <p className="text-naukri-muted py-8 text-center">Loading jobs...</p>
+          ) : tabJobs.length === 0 ? (
+            <p className="text-naukri-muted py-8 text-center">No jobs found. Try adjusting your search or filters.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {tabJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  selectable={isSeeker}
+                  selected={selected.has(job.id)}
+                  onSelect={toggleSelect}
+                  saved={saved.has(job.id)}
+                  onHide={handleHide}
+                  onSave={handleSave}
+                />
+              ))}
             </div>
+          )}
+        </div>
 
-            {loading ? (
-              <p className="text-naukri-muted py-8 text-center">Loading jobs...</p>
-            ) : tabJobs.length === 0 ? (
-              <p className="text-naukri-muted py-8 text-center">No jobs found. Try adjusting your search.</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {tabJobs.map((job) => (
-                  <JobCard
-                    key={job.id}
-                    job={job}
-                    selectable={isSeeker}
-                    selected={selected.has(job.id)}
-                    onSelect={toggleSelect}
-                    saved={saved.has(job.id)}
-                    onHide={handleHide}
-                    onSave={handleSave}
-                  />
-                ))}
+        <aside className="w-full xl:w-64 shrink-0 order-3">
+          <div className="naukri-sidebar-card sticky top-20">
+            <h2 className="font-semibold text-naukri-text mb-4">Your preferences</h2>
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-naukri-muted">Location search</span>
+                <p className="naukri-pref-tag mt-1 inline-block">{location || 'Any location'}</p>
               </div>
-            )}
-          </div>
-
-          <aside className="w-full lg:w-72 shrink-0">
-            <div className="naukri-sidebar-card sticky top-6">
-              <h2 className="font-semibold text-naukri-text mb-4">Add preferences to get matching jobs</h2>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm text-naukri-muted">Preferred job role</span>
-                  <button type="button" className="naukri-btn-outline">Add</button>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-sm text-naukri-muted">Preferred work location</span>
-                    <button type="button" className="text-naukri-muted hover:text-naukri-text text-sm" aria-label="Edit location">✎</button>
-                  </div>
-                  <span className="naukri-pref-tag">{location || 'Remote'}</span>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-sm text-naukri-muted">Preferred salary</span>
-                    <button type="button" className="text-naukri-muted hover:text-naukri-text text-sm" aria-label="Edit salary">✎</button>
-                  </div>
-                  <span className="naukri-pref-tag">₹ 35,00,000</span>
-                </div>
-              </div>
-
               {saved.size > 0 && (
-                <div className="mt-5 pt-4 border-t border-naukri-border">
-                  <p className="text-sm font-medium text-naukri-text mb-1">Saved jobs</p>
-                  <p className="text-xs text-naukri-muted">{saved.size} job{saved.size !== 1 ? 's' : ''} saved</p>
+                <div className="pt-3 border-t border-naukri-border">
+                  <p className="font-medium text-naukri-text">{saved.size} saved job{saved.size !== 1 ? 's' : ''}</p>
                 </div>
               )}
             </div>
-          </aside>
-        </div>
+          </div>
+        </aside>
       </div>
     </div>
   );

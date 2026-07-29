@@ -135,6 +135,12 @@ class JobListItem(BaseModel):
     skills: list[str] = []
 
 
+class JobFilterMeta(BaseModel):
+    locations: list[str] = []
+    employment_types: list[str] = []
+    skills: list[str] = []
+
+
 class CandidateProfileUpdate(BaseModel):
     headline: str | None = None
     current_company: str | None = None
