@@ -5,6 +5,7 @@ import JobFiltersSidebar, { type JobFilters } from '@/components/jobs/JobFilters
 import LocationAutocomplete from '@/components/jobs/LocationAutocomplete';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { withFilterDefaults } from '@/lib/jobFilterDefaults';
 import type { JobFilterMeta, JobListItem } from '@/types';
 
 type TabId = 'profile' | 'might_like' | 'preferences';
@@ -96,13 +97,15 @@ export default function JobsPage() {
   }, [load]);
 
   useEffect(() => {
-    api.jobs.filters().then(setFilterMeta).catch(() => setFilterMeta({
-      locations: [],
-      employment_types: [],
-      skills: [],
-      education_levels: [],
-      notice_periods: [],
-    }));
+    api.jobs.filters()
+      .then((data) => setFilterMeta(withFilterDefaults(data)))
+      .catch(() => setFilterMeta(withFilterDefaults({
+        locations: [],
+        employment_types: [],
+        skills: [],
+        education_levels: [],
+        notice_periods: [],
+      })));
   }, []);
 
   const visibleJobs = useMemo(() => jobs.filter((j) => !hidden.has(j.id)), [jobs, hidden]);

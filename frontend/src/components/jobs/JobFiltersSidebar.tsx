@@ -159,7 +159,7 @@ export default function JobFiltersSidebar({
               <option key={np} value={np}>{np}</option>
             ))}
           </select>
-          <p className="text-xs text-naukri-muted mt-1">Matches jobs mentioning this availability in the description.</p>
+          <p className="text-xs text-naukri-muted mt-1">Filter by maximum notice period the job accepts.</p>
         </div>
 
         <div>

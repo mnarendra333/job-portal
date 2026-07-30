@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import LocationSelect from '@/components/jobs/LocationSelect';
 import { api } from '@/lib/api';
+import { DEFAULT_EDUCATION_LEVELS, DEFAULT_NOTICE_PERIODS } from '@/lib/jobFilterDefaults';
 
 export default function JobFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,9 +26,12 @@ export default function JobFormPage() {
 
   useEffect(() => {
     api.jobs.filters().then((meta) => {
-      setEducationOptions(meta.education_levels);
-      setNoticeOptions(meta.notice_periods);
-    }).catch(() => {});
+      setEducationOptions(meta.education_levels.length ? meta.education_levels : DEFAULT_EDUCATION_LEVELS);
+      setNoticeOptions(meta.notice_periods.length ? meta.notice_periods : DEFAULT_NOTICE_PERIODS);
+    }).catch(() => {
+      setEducationOptions(DEFAULT_EDUCATION_LEVELS);
+      setNoticeOptions(DEFAULT_NOTICE_PERIODS);
+    });
   }, []);
 
   useEffect(() => {
