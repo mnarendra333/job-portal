@@ -384,7 +384,17 @@ async def list_published_jobs(
 ) -> list[JobListItem]:
     q = select(Job).where(Job.status == JobStatus.published)
     if keyword:
-        q = q.where(Job.title.ilike(f"%{keyword}%") | Job.description.ilike(f"%{keyword}%"))
+        kw = keyword.strip()
+        skill_match = (
+            select(JobSkill.job_id)
+            .join(Skill, Skill.id == JobSkill.skill_id)
+            .where(Skill.name.ilike(f"%{kw}%"))
+        )
+        q = q.where(
+            Job.title.ilike(f"%{kw}%")
+            | Job.description.ilike(f"%{kw}%")
+            | Job.id.in_(skill_match)
+        )
     if location:
         q = q.where(Job.location.ilike(f"%{location}%"))
     if employment_type:

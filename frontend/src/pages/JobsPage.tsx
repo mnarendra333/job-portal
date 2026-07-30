@@ -40,6 +40,27 @@ function saveIds(key: string, ids: Set<string>) {
   localStorage.setItem(key, JSON.stringify([...ids]));
 }
 
+function hasActiveSearch(
+  keyword: string,
+  location: string,
+  filters: JobFilters,
+): boolean {
+  return Boolean(
+    keyword.trim()
+    || location.trim()
+    || filters.keyword.trim()
+    || filters.location.trim()
+    || filters.employmentType
+    || filters.skills.length
+    || filters.education
+    || filters.noticePeriod
+    || filters.minExperience != null
+    || filters.maxExperience != null
+    || filters.minSalary != null
+    || filters.maxSalary != null,
+  );
+}
+
 export default function JobsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -63,10 +84,11 @@ export default function JobsPage() {
   const [saved, setSaved] = useState<Set<string>>(() => loadIds(SAVED_KEY));
 
   const isSeeker = user?.role === 'job_seeker';
+  const searching = hasActiveSearch(keyword, location, sidebarFilters);
 
   const load = useCallback(() => {
     setLoading(true);
-    const useRecommended = isSeeker && tab === 'profile';
+    const useRecommended = isSeeker && tab === 'profile' && !searching;
     if (useRecommended) {
       api.jobs.recommended()
         .then(setJobs)
@@ -90,7 +112,7 @@ export default function JobsPage() {
     })
       .then(setJobs)
       .finally(() => setLoading(false));
-  }, [keyword, location, sidebarFilters, isSeeker, tab]);
+  }, [keyword, location, sidebarFilters, isSeeker, tab, searching]);
 
   useEffect(() => {
     load();
@@ -111,11 +133,18 @@ export default function JobsPage() {
   const visibleJobs = useMemo(() => jobs.filter((j) => !hidden.has(j.id)), [jobs, hidden]);
 
   const tabJobs = useMemo(() => {
+    if (searching) return visibleJobs;
     if (tab === 'profile' && isSeeker) return visibleJobs;
     if (tab === 'preferences') return visibleJobs.filter((j) => j.skills.length >= 3);
     if (tab === 'might_like') return [...visibleJobs].sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
     return visibleJobs;
-  }, [visibleJobs, tab, isSeeker]);
+  }, [visibleJobs, tab, isSeeker, searching]);
+
+  const primaryTabLabel = searching
+    ? 'Search results'
+    : isSeeker
+      ? 'Recommended'
+      : 'All jobs';
 
   const toggleSelect = (id: string, checked: boolean) => {
     setSelected((prev) => {
@@ -255,14 +284,18 @@ export default function JobsPage() {
         <div className="flex-1 min-w-0 order-1 xl:order-2">
           <div className="flex gap-6 border-b border-naukri-border mb-5 overflow-x-auto">
             <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'profile' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('profile')}>
-              {isSeeker ? 'Recommended' : 'All jobs'} ({visibleJobs.length})
+              {primaryTabLabel} ({searching ? tabJobs.length : visibleJobs.length})
             </button>
+            {!searching && (
+              <>
             <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'might_like' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('might_like')}>
               You might like ({visibleJobs.length})
             </button>
             <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'preferences' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('preferences')}>
               Preferences ({visibleJobs.filter((j) => j.skills.length >= 3).length})
             </button>
+              </>
+            )}
           </div>
 
           {loading ? (

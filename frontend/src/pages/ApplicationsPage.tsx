@@ -95,8 +95,9 @@ export default function ApplicationsPage() {
         <button type="button" disabled={selected.size === 0} onClick={() => bulkStatus('rejected')} className="text-sm border rounded-lg px-3 py-1 disabled:opacity-40">Reject</button>
         <button type="button" disabled={selected.size === 0} onClick={() => downloadResumes([...selected], filtered)} className="text-sm border rounded-lg px-3 py-1 disabled:opacity-40">Download selected</button>
       </div>
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[960px]">
           <thead className="bg-slate-50">
             <tr>
               <th className="p-3 w-8" />
@@ -106,7 +107,7 @@ export default function ApplicationsPage() {
               <th className="text-left p-3">Source</th>
               <th className="text-left p-3">Resume</th>
               <th className="text-left p-3">Status</th>
-              <th className="text-left p-3">Actions</th>
+              <th className="text-left p-3 whitespace-nowrap min-w-[9.5rem] pr-4">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -133,10 +134,10 @@ export default function ApplicationsPage() {
                     {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                   </select>
                 </td>
-                <td className="p-3">
+                <td className="p-3 whitespace-nowrap min-w-[9.5rem] pr-4">
                   <button
                     type="button"
-                    className="text-teal-700 text-xs font-medium"
+                    className="text-teal-700 text-xs font-medium whitespace-nowrap hover:underline"
                     onClick={() => downloadResume(app.id, app.resume_file_name || 'resume')}
                   >
                     Download Resume
@@ -146,6 +147,7 @@ export default function ApplicationsPage() {
             ))}
           </tbody>
         </table>
+        </div>
         {filtered.length === 0 && <p className="p-4 text-slate-500">No applications match your filters.</p>}
       </div>
     </div>

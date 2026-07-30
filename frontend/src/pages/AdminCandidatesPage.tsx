@@ -118,21 +118,22 @@ export default function AdminCandidatesPage() {
         <span className="text-sm text-naukri-muted self-center ml-auto">{filteredCount} candidates · {selected.size} selected</span>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card">
         {loading ? (
           <p className="p-6 text-naukri-muted">Loading candidates...</p>
         ) : (
-          <table className="w-full text-sm min-w-[900px]">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[1024px]">
             <thead className="bg-slate-50">
               <tr>
                 <th className="p-3 w-8" />
                 <th className="text-left p-3">Candidate</th>
                 <th className="text-left p-3">Job</th>
-                <th className="text-left p-3">Location</th>
-                <th className="text-left p-3">Exp</th>
-                <th className="text-left p-3">Source</th>
-                <th className="text-left p-3">Status</th>
-                <th className="text-left p-3">Actions</th>
+                <th className="text-left p-3 whitespace-nowrap">Location</th>
+                <th className="text-left p-3 whitespace-nowrap">Exp</th>
+                <th className="text-left p-3 whitespace-nowrap">Source</th>
+                <th className="text-left p-3 whitespace-nowrap">Status</th>
+                <th className="text-left p-3 whitespace-nowrap min-w-[9.5rem] pr-4">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -151,12 +152,12 @@ export default function AdminCandidatesPage() {
                     <div>{app.job_title}</div>
                     <div className="text-xs text-slate-400">{app.organization_name}</div>
                   </td>
-                  <td className="p-3 text-xs">{app.job_location || '—'}</td>
-                  <td className="p-3 text-xs">{app.applicant_experience_years != null ? `${app.applicant_experience_years} yrs` : '—'}</td>
-                  <td className="p-3">
+                  <td className="p-3 text-xs whitespace-nowrap">{app.job_location || '—'}</td>
+                  <td className="p-3 text-xs whitespace-nowrap">{app.applicant_experience_years != null ? `${app.applicant_experience_years} yrs` : '—'}</td>
+                  <td className="p-3 whitespace-nowrap">
                     <span className={app.application_source === 'direct' ? 'badge-direct' : 'badge-agency'}>{app.application_source}</span>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 whitespace-nowrap">
                     <select
                       value={app.status}
                       onChange={async (e) => {
@@ -168,10 +169,10 @@ export default function AdminCandidatesPage() {
                       {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                     </select>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 whitespace-nowrap min-w-[9.5rem] pr-4">
                     <button
                       type="button"
-                      className="text-teal-700 text-xs font-medium"
+                      className="text-teal-700 text-xs font-medium whitespace-nowrap hover:underline"
                       onClick={() => downloadResume(app.id, app.resume_file_name || 'resume').catch(() => setMessage('Download failed'))}
                     >
                       Download Resume
@@ -181,6 +182,7 @@ export default function AdminCandidatesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {!loading && apps.length === 0 && <p className="p-6 text-slate-500">No candidates match your filters.</p>}
       </div>
