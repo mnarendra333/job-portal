@@ -16,6 +16,7 @@ interface AuthContextValue {
   }) => Promise<User>;
   oauthLogin: (provider: 'google' | 'linkedin', code: string, redirectUri: string, extra?: { role?: string; organization_name?: string }) => Promise<User>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -80,8 +81,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      setUser(null);
+      return;
+    }
+    try {
+      const me = await api.me();
+      setUser(me);
+    } catch {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      setUser(null);
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, oauthLogin, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, oauthLogin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

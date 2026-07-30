@@ -76,6 +76,11 @@ export default function JobCard({
               <Link to={`/jobs/${job.id}`} className="naukri-job-title hover:text-naukri-blue">
                 {job.title}
               </Link>
+              {job.match_score != null && job.match_score > 0 && (
+                <span className="ml-2 text-xs font-medium text-violet-700 bg-violet-50 px-2 py-0.5 rounded">
+                  {job.match_score}% match
+                </span>
+              )}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                 <span className="naukri-company-name">{job.organization_name}</span>
                 {job.company_rating != null && (

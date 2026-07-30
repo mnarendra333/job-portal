@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import LocationSelect from '@/components/jobs/LocationSelect';
 import { api } from '@/lib/api';
 
 export default function JobFormPage() {
@@ -16,7 +17,18 @@ export default function JobFormPage() {
   const [salaryVisible, setSalaryVisible] = useState(false);
   const [openings, setOpenings] = useState('1');
   const [skills, setSkills] = useState('');
+  const [education, setEducation] = useState('');
+  const [noticePeriod, setNoticePeriod] = useState('');
+  const [educationOptions, setEducationOptions] = useState<string[]>([]);
+  const [noticeOptions, setNoticeOptions] = useState<string[]>([]);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.jobs.filters().then((meta) => {
+      setEducationOptions(meta.education_levels);
+      setNoticeOptions(meta.notice_periods);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -32,6 +44,8 @@ export default function JobFormPage() {
         setSalaryVisible(job.salary_visible);
         setOpenings(job.openings.toString());
         setSkills(job.skills.join(', '));
+        setEducation(job.education_requirement ?? '');
+        setNoticePeriod(job.notice_period_max ?? '');
       }).catch(() => {});
     }
   }, [id]);
@@ -47,6 +61,8 @@ export default function JobFormPage() {
     salary_max: salaryMax ? parseFloat(salaryMax) : null,
     salary_visible: salaryVisible,
     openings: parseInt(openings, 10) || 1,
+    education_requirement: education || null,
+    notice_period_max: noticePeriod || null,
     skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
   });
 
@@ -69,13 +85,36 @@ export default function JobFormPage() {
       <form onSubmit={onSubmit} className="card p-6 space-y-4">
         <input required placeholder="Job title" className="w-full border rounded-lg px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} />
         <textarea required placeholder="Job description" rows={6} className="w-full border rounded-lg px-3 py-2" value={description} onChange={(e) => setDescription(e.target.value)} />
-        <input required placeholder="Location" className="w-full border rounded-lg px-3 py-2" value={location} onChange={(e) => setLocation(e.target.value)} />
+        <div>
+          <label className="text-sm text-slate-600 mb-1 block">Location</label>
+          <LocationSelect required value={location} onChange={setLocation} />
+        </div>
         <select className="w-full border rounded-lg px-3 py-2" value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}>
           <option value="full_time">Full time</option>
           <option value="part_time">Part time</option>
           <option value="contract">Contract</option>
           <option value="internship">Internship</option>
         </select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm text-slate-600 mb-1 block">Education required</label>
+            <select className="w-full border rounded-lg px-3 py-2" value={education} onChange={(e) => setEducation(e.target.value)}>
+              <option value="">Any / not specified</option>
+              {educationOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600 mb-1 block">Max notice period</label>
+            <select className="w-full border rounded-lg px-3 py-2" value={noticePeriod} onChange={(e) => setNoticePeriod(e.target.value)}>
+              <option value="">Any / not specified</option>
+              {noticeOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <input placeholder="Min experience (yrs)" type="number" className="border rounded-lg px-3 py-2" value={expMin} onChange={(e) => setExpMin(e.target.value)} />
           <input placeholder="Max experience (yrs)" type="number" className="border rounded-lg px-3 py-2" value={expMax} onChange={(e) => setExpMax(e.target.value)} />

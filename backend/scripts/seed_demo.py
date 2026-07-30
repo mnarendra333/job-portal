@@ -51,6 +51,8 @@ DEMO_JOBS = [
         "salary_visible": True,
         "openings": 2,
         "skills": ["React", "Python", "PostgreSQL", "FastAPI"],
+        "education_requirement": "B.Tech",
+        "notice_period_max": "60 days",
     },
     {
         "title": "DevOps Engineer",
@@ -64,6 +66,8 @@ DEMO_JOBS = [
         "salary_visible": False,
         "openings": 1,
         "skills": ["AWS", "Docker", "Kubernetes", "Terraform"],
+        "education_requirement": "Bachelor's Degree",
+        "notice_period_max": "30 days",
     },
     {
         "title": "HR Business Partner",
@@ -77,6 +81,8 @@ DEMO_JOBS = [
         "salary_visible": True,
         "openings": 1,
         "skills": ["HR", "Talent Acquisition", "Employee Relations"],
+        "education_requirement": "MBA",
+        "notice_period_max": "90 days",
     },
     {
         "title": "Data Analyst Intern",
@@ -90,6 +96,8 @@ DEMO_JOBS = [
         "salary_visible": True,
         "openings": 3,
         "skills": ["SQL", "Excel", "Python"],
+        "education_requirement": "Bachelor's Degree",
+        "notice_period_max": "Immediate",
     },
     {
         "title": "Sales Executive",
@@ -103,6 +111,8 @@ DEMO_JOBS = [
         "salary_visible": True,
         "openings": 4,
         "skills": ["B2B Sales", "SaaS", "CRM"],
+        "education_requirement": "Bachelor's Degree",
+        "notice_period_max": "15 days",
     },
 ]
 
@@ -158,7 +168,13 @@ async def seed(reset: bool = False) -> None:
             u = User(email=email, password_hash=hash_password("admin1234"), full_name=name, role=UserRole.job_seeker, auth_provider=AuthProvider.local)
             session.add(u)
             await session.flush()
-            session.add(CandidateProfile(user_id=u.id, headline=f"Software Professional #{i}", total_experience_years=2 + i))
+            session.add(CandidateProfile(
+                user_id=u.id,
+                headline=f"Software Professional #{i}",
+                total_experience_years=2 + i,
+                education="B.Tech" if i == 1 else "Bachelor's Degree",
+                notice_period="30 days" if i == 1 else "60 days",
+            ))
             seekers.append(u)
 
         session.add_all([admin, recruiter, agency_user])
@@ -180,6 +196,8 @@ async def seed(reset: bool = False) -> None:
                 salary_max=jd["salary_max"],
                 salary_visible=jd["salary_visible"],
                 openings=jd["openings"],
+                education_requirement=jd.get("education_requirement"),
+                notice_period_max=jd.get("notice_period_max"),
                 status=JobStatus.published,
                 published_at=now,
                 expiry_date=date.today() + timedelta(days=60),

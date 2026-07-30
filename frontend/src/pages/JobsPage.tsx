@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import JobCard from '@/components/jobs/JobCard';
 import JobFiltersSidebar, { type JobFilters } from '@/components/jobs/JobFiltersSidebar';
 import LocationAutocomplete from '@/components/jobs/LocationAutocomplete';
@@ -14,10 +14,16 @@ const HIDDEN_KEY = 'job_portal_hidden_jobs';
 const SAVED_KEY = 'job_portal_saved_jobs';
 
 const EMPTY_FILTERS: JobFilters = {
+  keyword: '',
+  location: '',
   employmentType: '',
-  skill: '',
+  skills: [],
   minExperience: null,
   maxExperience: null,
+  minSalary: null,
+  maxSalary: null,
+  education: '',
+  noticePeriod: '',
 };
 
 function loadIds(key: string): Set<string> {
@@ -36,13 +42,21 @@ function saveIds(key: string, ids: Set<string>) {
 export default function JobsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [keyword, setKeyword] = useState('');
   const [location, setLocation] = useState('');
   const [sidebarFilters, setSidebarFilters] = useState<JobFilters>(EMPTY_FILTERS);
-  const [filterMeta, setFilterMeta] = useState<JobFilterMeta>({ locations: [], employment_types: [], skills: [] });
+  const [filterMeta, setFilterMeta] = useState<JobFilterMeta>({
+    locations: [],
+    employment_types: [],
+    skills: [],
+    education_levels: [],
+    notice_periods: [],
+  });
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<TabId>('profile');
+  const initialTab = (searchParams.get('tab') as TabId) || 'profile';
+  const [tab, setTab] = useState<TabId>(initialTab);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(() => loadIds(HIDDEN_KEY));
   const [saved, setSaved] = useState<Set<string>>(() => loadIds(SAVED_KEY));
@@ -51,33 +65,54 @@ export default function JobsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    const useRecommended = isSeeker && tab === 'profile';
+    if (useRecommended) {
+      api.jobs.recommended()
+        .then(setJobs)
+        .catch(() => setJobs([]))
+        .finally(() => setLoading(false));
+      return;
+    }
+    const searchKeyword = [keyword, sidebarFilters.keyword].filter(Boolean).join(' ') || undefined;
+    const searchLocation = location || sidebarFilters.location || undefined;
     api.jobs.list({
-      keyword: keyword || undefined,
-      location: location || undefined,
+      keyword: searchKeyword,
+      location: searchLocation,
       employment_type: sidebarFilters.employmentType || undefined,
-      skill: sidebarFilters.skill || undefined,
+      skills: sidebarFilters.skills.length ? sidebarFilters.skills : undefined,
       min_experience: sidebarFilters.minExperience ?? undefined,
       max_experience: sidebarFilters.maxExperience ?? undefined,
+      min_salary: sidebarFilters.minSalary ?? undefined,
+      max_salary: sidebarFilters.maxSalary ?? undefined,
+      education: sidebarFilters.education || undefined,
+      notice_period: sidebarFilters.noticePeriod || undefined,
     })
       .then(setJobs)
       .finally(() => setLoading(false));
-  }, [keyword, location, sidebarFilters]);
+  }, [keyword, location, sidebarFilters, isSeeker, tab]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   useEffect(() => {
-    api.jobs.filters().then(setFilterMeta).catch(() => setFilterMeta({ locations: [], employment_types: [], skills: [] }));
+    api.jobs.filters().then(setFilterMeta).catch(() => setFilterMeta({
+      locations: [],
+      employment_types: [],
+      skills: [],
+      education_levels: [],
+      notice_periods: [],
+    }));
   }, []);
 
   const visibleJobs = useMemo(() => jobs.filter((j) => !hidden.has(j.id)), [jobs, hidden]);
 
   const tabJobs = useMemo(() => {
+    if (tab === 'profile' && isSeeker) return visibleJobs;
     if (tab === 'preferences') return visibleJobs.filter((j) => j.skills.length >= 3);
-    if (tab === 'might_like') return [...visibleJobs].reverse();
+    if (tab === 'might_like') return [...visibleJobs].sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
     return visibleJobs;
-  }, [visibleJobs, tab]);
+  }, [visibleJobs, tab, isSeeker]);
 
   const toggleSelect = (id: string, checked: boolean) => {
     setSelected((prev) => {
@@ -132,12 +167,22 @@ export default function JobsPage() {
     setLocation('');
   };
 
+  const syncSidebarFromSearch = () => {
+    setSidebarFilters((prev) => ({
+      ...prev,
+      keyword: keyword || prev.keyword,
+      location: location || prev.location,
+    }));
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
           <Link to="/" className="text-sm text-naukri-muted hover:text-naukri-blue mb-2 inline-block">← Home</Link>
-          <h1 className="text-xl font-bold text-naukri-text">Recommended jobs for you</h1>
+          <h1 className="text-xl font-bold text-naukri-text">
+            {isSeeker && tab === 'profile' ? 'Recommended jobs for you' : 'Browse jobs'}
+          </h1>
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           {isSeeker && (
@@ -162,24 +207,44 @@ export default function JobsPage() {
           placeholder="Skills, designation, companies"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && load()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              syncSidebarFromSearch();
+              load();
+            }
+          }}
         />
         <LocationAutocomplete
           value={location}
           onChange={setLocation}
-          onSelect={() => load()}
+          onSelect={() => {
+            syncSidebarFromSearch();
+            load();
+          }}
           className="flex-1 min-w-[160px]"
         />
-        <button type="button" onClick={load} className="naukri-btn-primary shrink-0">Search</button>
+        <button
+          type="button"
+          onClick={() => {
+            syncSidebarFromSearch();
+            load();
+          }}
+          className="naukri-btn-primary shrink-0"
+        >
+          Search
+        </button>
       </div>
 
       <div className="flex gap-6 flex-col xl:flex-row">
-        <div className="w-full xl:w-56 shrink-0 order-2 xl:order-1">
+        <div className="w-full xl:w-72 shrink-0 order-2 xl:order-1">
           <JobFiltersSidebar
             filters={sidebarFilters}
             meta={filterMeta}
             onChange={setSidebarFilters}
-            onApply={load}
+            onApply={() => {
+              syncSidebarFromSearch();
+              load();
+            }}
             onClear={clearFilters}
           />
         </div>
@@ -187,7 +252,7 @@ export default function JobsPage() {
         <div className="flex-1 min-w-0 order-1 xl:order-2">
           <div className="flex gap-6 border-b border-naukri-border mb-5 overflow-x-auto">
             <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'profile' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('profile')}>
-              Profile ({visibleJobs.length})
+              {isSeeker ? 'Recommended' : 'All jobs'} ({visibleJobs.length})
             </button>
             <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'might_like' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('might_like')}>
               You might like ({visibleJobs.length})
@@ -224,9 +289,15 @@ export default function JobsPage() {
             <h2 className="font-semibold text-naukri-text mb-4">Your preferences</h2>
             <div className="space-y-3 text-sm">
               <div>
-                <span className="text-naukri-muted">Location search</span>
-                <p className="naukri-pref-tag mt-1 inline-block">{location || 'Any location'}</p>
+                <span className="text-naukri-muted">Location</span>
+                <p className="naukri-pref-tag mt-1 inline-block">{location || sidebarFilters.location || 'Any location'}</p>
               </div>
+              {sidebarFilters.education && (
+                <div>
+                  <span className="text-naukri-muted">Education</span>
+                  <p className="naukri-pref-tag mt-1 inline-block">{sidebarFilters.education}</p>
+                </div>
+              )}
               {saved.size > 0 && (
                 <div className="pt-3 border-t border-naukri-border">
                   <p className="font-medium text-naukri-text">{saved.size} saved job{saved.size !== 1 ? 's' : ''}</p>

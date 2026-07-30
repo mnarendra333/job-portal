@@ -58,25 +58,46 @@ export const api = {
   oauthAuthorizeUrl: (provider: string, redirectUri: string) =>
     request<{ authorize_url: string }>(`/auth/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&state=jobs`),
   me: () => request<import('@/types').User>('/auth/me'),
+  account: {
+    update: (data: { full_name?: string; mobile?: string }) =>
+      request<import('@/types').User>('/auth/account', { method: 'PUT', body: JSON.stringify(data) }),
+    changePassword: (current_password: string, new_password: string) =>
+      request<void>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password, new_password }),
+      }),
+  },
   jobs: {
     list: (params?: {
       keyword?: string;
       location?: string;
       employment_type?: string;
       skill?: string;
+      skills?: string[];
       min_experience?: number;
       max_experience?: number;
+      min_salary?: number;
+      max_salary?: number;
+      education?: string;
+      notice_period?: string;
     }) => {
       const q = new URLSearchParams();
       if (params?.keyword) q.set('keyword', params.keyword);
       if (params?.location) q.set('location', params.location);
       if (params?.employment_type) q.set('employment_type', params.employment_type);
       if (params?.skill) q.set('skill', params.skill);
+      if (params?.skills?.length) q.set('skills', params.skills.join(','));
       if (params?.min_experience != null) q.set('min_experience', String(params.min_experience));
       if (params?.max_experience != null) q.set('max_experience', String(params.max_experience));
+      if (params?.min_salary != null) q.set('min_salary', String(params.min_salary));
+      if (params?.max_salary != null) q.set('max_salary', String(params.max_salary));
+      if (params?.education) q.set('education', params.education);
+      if (params?.notice_period) q.set('notice_period', params.notice_period);
       const qs = q.toString();
       return request<import('@/types').JobListItem[]>(`/jobs${qs ? `?${qs}` : ''}`);
     },
+    recommended: () => request<import('@/types').JobListItem[]>('/jobs/recommended'),
+    allLocations: () => request<string[]>('/jobs/locations/all'),
     locations: (q?: string) => {
       const qs = q ? `?q=${encodeURIComponent(q)}` : '';
       return request<string[]>(`/jobs/locations${qs}`);
@@ -110,13 +131,54 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       }),
+    bulkUpdateStatus: (application_ids: string[], status: string) =>
+      request<import('@/types').Application[]>('/applications/bulk-status', {
+        method: 'PATCH',
+        body: JSON.stringify({ application_ids, status }),
+      }),
     downloadUrl: (id: string) => `${API_BASE}/applications/${id}/resume/download`,
+  },
+  admin: {
+    dashboard: () => request<import('@/types').AdminDashboard>('/dashboard/admin'),
+    applications: (params?: {
+      keyword?: string;
+      status?: string;
+      source?: string;
+      location?: string;
+      education?: string;
+      notice_period?: string;
+      min_experience?: number;
+      skill?: string;
+    }) => {
+      const q = new URLSearchParams();
+      if (params?.keyword) q.set('keyword', params.keyword);
+      if (params?.status) q.set('status', params.status);
+      if (params?.source) q.set('source', params.source);
+      if (params?.location) q.set('location', params.location);
+      if (params?.education) q.set('education', params.education);
+      if (params?.notice_period) q.set('notice_period', params.notice_period);
+      if (params?.min_experience != null) q.set('min_experience', String(params.min_experience));
+      if (params?.skill) q.set('skill', params.skill);
+      const qs = q.toString();
+      return request<import('@/types').Application[]>(`/applications/all${qs ? `?${qs}` : ''}`);
+    },
+    agencyUploads: () => request<import('@/types').BulkUploadBatch[]>('/bulk-uploads/all'),
+    users: (role?: string) => {
+      const qs = role ? `?role=${encodeURIComponent(role)}` : '';
+      return request<import('@/types').AdminUser[]>(`/admin/users${qs}`);
+    },
+    setUserActive: (id: string, is_active: boolean) =>
+      request<import('@/types').AdminUser>(`/admin/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active }),
+      }),
   },
   bulkUploads: {
     mine: () => request<import('@/types').BulkUploadBatch[]>('/bulk-uploads/mine'),
     get: (id: string) => request<import('@/types').BulkUploadBatch>(`/bulk-uploads/${id}`),
   },
   dashboard: {
+    admin: () => request<import('@/types').AdminDashboard>('/dashboard/admin'),
     recruiter: () => request<import('@/types').RecruiterDashboard>('/dashboard/recruiter'),
     seeker: () => request<import('@/types').SeekerDashboard>('/dashboard/seeker'),
     agency: () => request<import('@/types').AgencyDashboard>('/dashboard/agency'),

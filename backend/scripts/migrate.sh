@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run demo seed with the project venv (avoids shell `python` aliases pointing at system Python).
+# Apply pending SQL migrations from supabase/migrations/
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -23,5 +23,4 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 export PYTHONPATH="$ROOT"
-"$ROOT/.venv/bin/python" "$ROOT/scripts/run_migrations.py"
-exec "$ROOT/.venv/bin/python" "$ROOT/scripts/seed_demo.py" "$@"
+exec "$ROOT/.venv/bin/python" "$ROOT/scripts/run_migrations.py"

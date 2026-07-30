@@ -1,11 +1,15 @@
 import { Link, useNavigate } from 'react-router-dom';
+import UserMenuDropdown from '@/components/UserMenuDropdown';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function AppHeader() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
 
-  const dashboardPath = user ? '/app' : '/login';
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <header className="bg-white border-b border-naukri-border sticky top-0 z-20 shadow-sm">
@@ -17,7 +21,7 @@ export default function AppHeader() {
           <nav className="hidden sm:flex items-center gap-4 text-sm">
             <Link to="/jobs" className="text-naukri-muted hover:text-naukri-blue">Browse Jobs</Link>
             {user && (
-              <Link to={dashboardPath} className="text-naukri-muted hover:text-naukri-blue">Dashboard</Link>
+              <Link to="/app" className="text-naukri-muted hover:text-naukri-blue">Dashboard</Link>
             )}
           </nav>
         </div>
@@ -26,32 +30,7 @@ export default function AppHeader() {
           {loading ? (
             <span className="text-sm text-naukri-muted">...</span>
           ) : user ? (
-            <>
-              <Link
-                to={dashboardPath}
-                className="hidden md:inline text-sm text-naukri-muted hover:text-naukri-blue"
-              >
-                {user.role.replace('_', ' ')}
-              </Link>
-              <div className="flex items-center gap-2 pl-3 border-l border-naukri-border">
-                <span
-                  className="inline-flex items-center gap-2 text-sm font-medium text-naukri-text"
-                  title={user.email}
-                >
-                  <span className="w-8 h-8 rounded-full bg-naukri-blue/10 text-naukri-blue flex items-center justify-center text-xs font-semibold">
-                    {user.full_name.split(/\s+/).map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                  </span>
-                  <span className="hidden sm:inline max-w-[140px] truncate">{user.full_name}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { logout(); navigate('/'); }}
-                  className="text-sm text-red-600 hover:text-red-800 font-medium ml-1"
-                >
-                  Sign out
-                </button>
-              </div>
-            </>
+            <UserMenuDropdown user={user} onLogout={handleLogout} />
           ) : (
             <>
               <Link to="/login" className="text-sm text-naukri-muted hover:text-naukri-blue">Sign in</Link>

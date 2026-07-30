@@ -20,6 +20,7 @@ export default function ProfilePage() {
         current_company: profile.current_company,
         total_experience_years: profile.total_experience_years,
         notice_period: profile.notice_period,
+        education: profile.education,
         current_ctc: profile.current_ctc,
         expected_ctc: profile.expected_ctc,
         linkedin_url: profile.linkedin_url,
@@ -59,6 +60,16 @@ export default function ProfilePage() {
         <input placeholder="Current company" className="w-full border rounded-lg px-3 py-2" value={profile.current_company ?? ''} onChange={(e) => setProfile({ ...profile, current_company: e.target.value })} />
         <input placeholder="Total experience (years)" type="number" step="0.5" className="w-full border rounded-lg px-3 py-2" value={profile.total_experience_years ?? ''} onChange={(e) => setProfile({ ...profile, total_experience_years: parseFloat(e.target.value) || undefined })} />
         <input placeholder="Notice period" className="w-full border rounded-lg px-3 py-2" value={profile.notice_period ?? ''} onChange={(e) => setProfile({ ...profile, notice_period: e.target.value })} />
+        <select
+          className="w-full border rounded-lg px-3 py-2"
+          value={profile.education ?? ''}
+          onChange={(e) => setProfile({ ...profile, education: e.target.value || undefined })}
+        >
+          <option value="">Select education</option>
+          {["Bachelor's Degree", "Master's Degree", "MBA", "B.Tech", "M.Tech", "BCA", "MCA", "PhD", "Diploma"].map((e) => (
+            <option key={e} value={e}>{e}</option>
+          ))}
+        </select>
         <div className="grid grid-cols-2 gap-3">
           <input placeholder="Current CTC" type="number" className="border rounded-lg px-3 py-2" value={profile.current_ctc ?? ''} onChange={(e) => setProfile({ ...profile, current_ctc: parseFloat(e.target.value) || undefined })} />
           <input placeholder="Expected CTC" type="number" className="border rounded-lg px-3 py-2" value={profile.expected_ctc ?? ''} onChange={(e) => setProfile({ ...profile, expected_ctc: parseFloat(e.target.value) || undefined })} />

@@ -5,6 +5,10 @@ import { api } from '@/lib/api';
 import { companyInitials, formatExperience, formatPostedAgo, formatSalary } from '@/lib/jobFormat';
 import type { Job } from '@/types';
 
+function formatStatus(status: string) {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -18,7 +22,7 @@ export default function JobDetailPage() {
 
   useEffect(() => {
     if (id) api.jobs.get(id).then(setJob).catch(() => setJob(null));
-  }, [id]);
+  }, [id, user?.id]);
 
   const apply = async () => {
     if (!id || !user) { navigate('/login'); return; }
@@ -28,6 +32,8 @@ export default function JobDetailPage() {
       if (coverLetter) fd.append('cover_letter', coverLetter);
       if (file) fd.append('file', file);
       await api.jobs.apply(id, fd);
+      const updated = await api.jobs.get(id);
+      setJob(updated);
       setMessage('Application submitted!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Apply failed');
@@ -49,6 +55,8 @@ export default function JobDetailPage() {
 
   if (!job) return <div className="p-8 text-center text-naukri-muted">Loading job...</div>;
 
+  const hasApplied = job.user_has_applied === true;
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <Link to="/jobs" className="text-sm text-naukri-blue hover:underline">← All jobs</Link>
@@ -56,7 +64,14 @@ export default function JobDetailPage() {
         <div className="naukri-job-card mt-4">
           <div className="flex justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-naukri-text">{job.title}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-naukri-text">{job.title}</h1>
+                {hasApplied && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                    ✓ Applied
+                  </span>
+                )}
+              </div>
               <p className="naukri-company-name mt-2">{job.organization_name}</p>
             </div>
             <div className="naukri-logo-box">
@@ -75,6 +90,19 @@ export default function JobDetailPage() {
             <p className="mt-4 text-sm text-naukri-skill">{job.skills.join(' ')}</p>
           )}
 
+          {hasApplied && (
+            <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-900">
+              You applied to this job
+              {job.user_application_status && (
+                <> · Status: <span className="font-medium">{formatStatus(job.user_application_status)}</span></>
+              )}
+              .{' '}
+              <Link to="/app/applications" className="font-medium text-emerald-800 hover:underline">
+                View my applications
+              </Link>
+            </div>
+          )}
+
           <div className="mt-6 pt-4 border-t border-naukri-border">
             <h2 className="text-sm font-semibold text-naukri-text mb-2">Job description</h2>
             <p className="whitespace-pre-wrap text-sm text-naukri-muted leading-relaxed">{job.description}</p>
@@ -84,7 +112,7 @@ export default function JobDetailPage() {
         {message && <p className="mt-4 text-emerald-700">{message}</p>}
         {error && <p className="mt-4 text-red-600">{error}</p>}
 
-        {user?.role === 'job_seeker' && (
+        {user?.role === 'job_seeker' && !hasApplied && (
           <div className="naukri-sidebar-card mt-6">
             <h2 className="font-semibold text-naukri-text mb-3">Apply to this job</h2>
             <textarea

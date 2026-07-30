@@ -15,6 +15,8 @@ class Permission(str, Enum):
     DASHBOARD_SEEKER = "dashboard:seeker"
     DASHBOARD_AGENCY = "dashboard:agency"
     DASHBOARD_ADMIN = "dashboard:admin"
+    USERS_READ = "users:read"
+    USERS_MANAGE = "users:manage"
 
 
 ROLE_PERMISSIONS: dict[str, set[Permission]] = {

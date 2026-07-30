@@ -1,0 +1,2 @@
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS education_requirement VARCHAR(255);
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notice_period_max VARCHAR(100);

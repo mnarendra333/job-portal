@@ -9,13 +9,18 @@ from app.core.permissions import Permission
 from app.db.session import get_db
 from app.models import User
 from app.schemas import (
+    AccountUpdateRequest,
+    AdminDashboard,
+    AdminUserResponse,
     AgencyDashboard,
     ApplicationResponse,
     ApplicationStatusUpdate,
     ApplyRequest,
+    BulkApplicationStatusUpdate,
     BulkUploadBatchResponse,
     CandidateProfileResponse,
     CandidateProfileUpdate,
+    ChangePasswordRequest,
     JobCreate,
     JobFilterMeta,
     JobListItem,
@@ -30,8 +35,9 @@ from app.schemas import (
     SeekerDashboard,
     TokenResponse,
     UserResponse,
+    UserStatusUpdate,
 )
-from app.services import dashboard_service, job_service, oauth_service
+from app.services import admin_service, dashboard_service, job_service, oauth_service
 from app.services.storage_service import StorageService
 
 router = APIRouter()
@@ -66,6 +72,30 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
     return await job_service.get_user_response(db, user)
 
 
+@router.put("/auth/account", response_model=UserResponse)
+async def update_account(
+    body: AccountUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await job_service.update_account(db, user, body)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.post("/auth/change-password", status_code=204)
+async def change_password(
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        await job_service.change_password(db, user, body.current_password, body.new_password)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
 @router.get("/auth/oauth/{provider}/authorize")
 async def oauth_authorize(provider: str, redirect_uri: str, state: str = "jobs"):
     try:
@@ -98,6 +128,11 @@ async def oauth_linkedin(body: OAuthRequest, db: AsyncSession = Depends(get_db))
 
 
 # --- Public jobs ---
+@router.get("/jobs/locations/all", response_model=list[str])
+async def all_job_locations(db: AsyncSession = Depends(get_db)):
+    return await job_service.list_all_job_locations(db)
+
+
 @router.get("/jobs/locations", response_model=list[str])
 async def job_locations(q: str | None = None, db: AsyncSession = Depends(get_db)):
     return await job_service.list_job_locations(db, q)
@@ -115,13 +150,49 @@ async def list_jobs(
     location: str | None = None,
     employment_type: str | None = None,
     skill: str | None = None,
+    skills: str | None = None,
     min_experience: int | None = None,
     max_experience: int | None = None,
+    min_salary: float | None = None,
+    max_salary: float | None = None,
+    education: str | None = None,
+    notice_period: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
+    skill_list = [s.strip() for s in skills.split(",") if s.strip()] if skills else None
     return await job_service.list_published_jobs(
-        db, keyword, location, employment_type, skill, min_experience, max_experience
+        db,
+        keyword,
+        location,
+        employment_type,
+        skill,
+        skill_list,
+        min_experience,
+        max_experience,
+        min_salary,
+        max_salary,
+        education,
+        notice_period,
     )
+
+
+@router.get("/jobs/recommended", response_model=list[JobListItem])
+async def recommended_jobs(
+    user: User = Depends(require_permission(Permission.DASHBOARD_SEEKER)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await job_service.list_recommended_jobs(db, user)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.get("/jobs/mine/list", response_model=list[JobResponse])
+async def my_jobs(
+    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    db: AsyncSession = Depends(get_db),
+):
+    return await job_service.list_my_jobs(db, user)
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
@@ -143,14 +214,6 @@ async def create_job(
         return await job_service.create_job(db, user, body)
     except ValueError as e:
         raise _handle_value_error(e)
-
-
-@router.get("/jobs/mine/list", response_model=list[JobResponse])
-async def my_jobs(
-    user: User = Depends(require_permission(Permission.JOBS_READ)),
-    db: AsyncSession = Depends(get_db),
-):
-    return await job_service.list_my_jobs(db, user)
 
 
 @router.put("/jobs/{job_id}", response_model=JobResponse)
@@ -226,6 +289,27 @@ async def apply_to_job(
         raise _handle_value_error(e)
 
 
+@router.get("/applications/all", response_model=list[ApplicationResponse])
+async def all_applications(
+    keyword: str | None = None,
+    status: str | None = None,
+    source: str | None = None,
+    location: str | None = None,
+    education: str | None = None,
+    notice_period: str | None = None,
+    min_experience: float | None = None,
+    skill: str | None = None,
+    user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await job_service.list_all_applications(
+            db, user, keyword, status, source, location, education, notice_period, min_experience, skill,
+        )
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
 @router.get("/applications/mine", response_model=list[ApplicationResponse])
 async def my_applications(
     user: User = Depends(require_permission(Permission.APPLICATIONS_READ)),
@@ -242,6 +326,18 @@ async def job_applications(
 ):
     try:
         return await job_service.list_job_applications(db, user, job_id)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.patch("/applications/bulk-status", response_model=list[ApplicationResponse])
+async def bulk_update_app_status(
+    body: BulkApplicationStatusUpdate,
+    user: User = Depends(require_permission(Permission.APPLICATIONS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await job_service.bulk_update_application_status(db, user, body.application_ids, body.status)
     except ValueError as e:
         raise _handle_value_error(e)
 
@@ -287,6 +383,17 @@ async def bulk_upload(
         raise _handle_value_error(e)
 
 
+@router.get("/bulk-uploads/all", response_model=list[BulkUploadBatchResponse])
+async def all_bulk_uploads(
+    user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await job_service.list_all_bulk_batches(db, user)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
 @router.get("/bulk-uploads/mine", response_model=list[BulkUploadBatchResponse])
 async def my_bulk_uploads(
     user: User = Depends(require_permission(Permission.BULK_UPLOAD)),
@@ -308,6 +415,17 @@ async def get_bulk_upload(
 
 
 # --- Dashboards ---
+@router.get("/dashboard/admin", response_model=AdminDashboard)
+async def admin_dashboard(
+    user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await dashboard_service.admin_dashboard(db, user)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
 @router.get("/dashboard/recruiter", response_model=RecruiterDashboard)
 async def recruiter_dashboard(
     user: User = Depends(require_permission(Permission.DASHBOARD_RECRUITER)),
@@ -330,3 +448,29 @@ async def agency_dashboard(
     db: AsyncSession = Depends(get_db),
 ):
     return await dashboard_service.agency_dashboard(db, user)
+
+
+# --- Admin user management ---
+@router.get("/admin/users", response_model=list[AdminUserResponse])
+async def admin_list_users(
+    role: str | None = None,
+    user: User = Depends(require_permission(Permission.USERS_READ)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await admin_service.list_users(db, role)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.patch("/admin/users/{user_id}", response_model=AdminUserResponse)
+async def admin_update_user_status(
+    user_id: UUID,
+    body: UserStatusUpdate,
+    user: User = Depends(require_permission(Permission.USERS_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await admin_service.set_user_active(db, user, user_id, body.is_active)
+    except ValueError as e:
+        raise _handle_value_error(e)

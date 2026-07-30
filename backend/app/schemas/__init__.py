@@ -23,6 +23,16 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class AccountUpdateRequest(BaseModel):
+    full_name: str | None = None
+    mobile: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
 class OAuthRequest(BaseModel):
     code: str
     redirect_uri: str
@@ -39,6 +49,7 @@ class UserResponse(BaseModel):
     auth_provider: str
     organization_id: UUID | None
     organization_name: str | None = None
+    permissions: list[str] = []
 
     class Config:
         from_attributes = True
@@ -67,6 +78,8 @@ class JobCreate(BaseModel):
     salary_visible: bool = False
     openings: int = 1
     expiry_date: date | None = None
+    education_requirement: str | None = None
+    notice_period_max: str | None = None
     skills: list[str] = []
 
 
@@ -82,6 +95,8 @@ class JobUpdate(BaseModel):
     salary_visible: bool | None = None
     openings: int | None = None
     expiry_date: date | None = None
+    education_requirement: str | None = None
+    notice_period_max: str | None = None
     skills: list[str] | None = None
 
 
@@ -109,7 +124,11 @@ class JobResponse(BaseModel):
     expiry_date: date | None
     created_at: datetime
     skills: list[str] = []
+    education_requirement: str | None = None
+    notice_period_max: str | None = None
     application_count: int = 0
+    user_has_applied: bool = False
+    user_application_status: str | None = None
 
     class Config:
         from_attributes = True
@@ -133,12 +152,19 @@ class JobListItem(BaseModel):
     openings: int = 1
     published_at: datetime | None
     skills: list[str] = []
+    education_requirement: str | None = None
+    notice_period_max: str | None = None
+    match_score: int | None = None
 
 
 class JobFilterMeta(BaseModel):
     locations: list[str] = []
     employment_types: list[str] = []
     skills: list[str] = []
+    education_levels: list[str] = []
+    notice_periods: list[str] = []
+    salary_min: float | None = None
+    salary_max: float | None = None
 
 
 class CandidateProfileUpdate(BaseModel):
@@ -146,6 +172,7 @@ class CandidateProfileUpdate(BaseModel):
     current_company: str | None = None
     total_experience_years: float | None = None
     notice_period: str | None = None
+    education: str | None = None
     current_ctc: float | None = None
     expected_ctc: float | None = None
     linkedin_url: str | None = None
@@ -159,6 +186,7 @@ class CandidateProfileResponse(BaseModel):
     current_company: str | None
     total_experience_years: float | None
     notice_period: str | None
+    education: str | None = None
     current_ctc: float | None
     expected_ctc: float | None
     linkedin_url: str | None
@@ -189,11 +217,16 @@ class ApplicationResponse(BaseModel):
     id: UUID
     job_id: UUID
     job_title: str | None = None
+    job_location: str | None = None
+    organization_name: str | None = None
     resume_id: UUID
     resume_file_name: str | None = None
     application_source: str
     applicant_name: str | None = None
     applicant_email: str | None = None
+    applicant_notice_period: str | None = None
+    applicant_education: str | None = None
+    applicant_experience_years: float | None = None
     agency_name: str | None = None
     cover_letter: str | None
     status: str
@@ -204,6 +237,11 @@ class ApplicationResponse(BaseModel):
 
 
 class ApplicationStatusUpdate(BaseModel):
+    status: str
+
+
+class BulkApplicationStatusUpdate(BaseModel):
+    application_ids: list[UUID]
     status: str
 
 
@@ -238,9 +276,41 @@ class RecruiterDashboard(BaseModel):
 class SeekerDashboard(BaseModel):
     applied_count: int
     by_status: dict[str, int]
+    recommended_count: int = 0
+
+
+class AdminUserResponse(BaseModel):
+    id: UUID
+    email: str
+    full_name: str
+    role: str
+    organization_name: str | None = None
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None = None
+
+
+class UserStatusUpdate(BaseModel):
+    is_active: bool
 
 
 class AgencyDashboard(BaseModel):
     total_uploads: int
     total_batches: int
     recent_batches: list[BulkUploadBatchResponse]
+
+
+class AdminDashboard(BaseModel):
+    total_jobs: int
+    published_jobs: int
+    draft_jobs: int
+    closed_jobs: int
+    total_applications: int
+    direct_applications: int
+    agency_applications: int
+    total_recruiters: int
+    total_agencies: int
+    total_seekers: int
+    total_agency_batches: int
+    by_status: dict[str, int]
+    recent_agency_uploads: list[BulkUploadBatchResponse] = []

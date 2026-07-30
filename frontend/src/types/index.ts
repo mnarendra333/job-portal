@@ -9,6 +9,18 @@ export interface User {
   auth_provider: string;
   organization_id?: string;
   organization_name?: string;
+  permissions?: string[];
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  organization_name?: string;
+  is_active: boolean;
+  created_at: string;
+  last_login_at?: string;
 }
 
 export interface JobListItem {
@@ -29,12 +41,19 @@ export interface JobListItem {
   openings?: number;
   published_at?: string;
   skills: string[];
+  education_requirement?: string;
+  notice_period_max?: string;
+  match_score?: number;
 }
 
 export interface JobFilterMeta {
   locations: string[];
   employment_types: string[];
   skills: string[];
+  education_levels: string[];
+  notice_periods: string[];
+  salary_min?: number;
+  salary_max?: number;
 }
 
 export interface Job extends JobListItem {
@@ -46,6 +65,10 @@ export interface Job extends JobListItem {
   expiry_date?: string;
   created_at: string;
   application_count: number;
+  education_requirement?: string;
+  notice_period_max?: string;
+  user_has_applied?: boolean;
+  user_application_status?: string;
 }
 
 export interface Application {
@@ -57,6 +80,11 @@ export interface Application {
   application_source: 'direct' | 'agency';
   applicant_name?: string;
   applicant_email?: string;
+  applicant_notice_period?: string;
+  applicant_education?: string;
+  applicant_experience_years?: number;
+  job_location?: string;
+  organization_name?: string;
   agency_name?: string;
   cover_letter?: string;
   status: string;
@@ -70,6 +98,7 @@ export interface CandidateProfile {
   current_company?: string;
   total_experience_years?: number;
   notice_period?: string;
+  education?: string;
   current_ctc?: number;
   expected_ctc?: number;
   linkedin_url?: string;
@@ -90,6 +119,7 @@ export interface RecruiterDashboard {
 export interface SeekerDashboard {
   applied_count: number;
   by_status: Record<string, number>;
+  recommended_count?: number;
 }
 
 export interface BulkUploadBatch {
@@ -107,4 +137,20 @@ export interface AgencyDashboard {
   total_uploads: number;
   total_batches: number;
   recent_batches: BulkUploadBatch[];
+}
+
+export interface AdminDashboard {
+  total_jobs: number;
+  published_jobs: number;
+  draft_jobs: number;
+  closed_jobs: number;
+  total_applications: number;
+  direct_applications: number;
+  agency_applications: number;
+  total_recruiters: number;
+  total_agencies: number;
+  total_seekers: number;
+  total_agency_batches: number;
+  by_status: Record<string, number>;
+  recent_agency_uploads: BulkUploadBatch[];
 }

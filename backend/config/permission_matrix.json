@@ -1,0 +1,43 @@
+{
+  "roles": {
+    "admin": [
+      "jobs:read",
+      "jobs:write",
+      "jobs:manage",
+      "applications:read",
+      "applications:write",
+      "applications:manage",
+      "profile:read",
+      "profile:write",
+      "bulk:upload",
+      "dashboard:recruiter",
+      "dashboard:seeker",
+      "dashboard:agency",
+      "dashboard:admin",
+      "users:read",
+      "users:manage"
+    ],
+    "recruiter": [
+      "jobs:read",
+      "jobs:write",
+      "jobs:manage",
+      "applications:read",
+      "applications:manage",
+      "dashboard:recruiter"
+    ],
+    "agency": [
+      "jobs:read",
+      "bulk:upload",
+      "applications:read",
+      "dashboard:agency"
+    ],
+    "job_seeker": [
+      "jobs:read",
+      "applications:read",
+      "applications:write",
+      "profile:read",
+      "profile:write",
+      "dashboard:seeker"
+    ]
+  }
+}
