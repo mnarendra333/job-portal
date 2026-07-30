@@ -118,71 +118,77 @@ export default function AdminCandidatesPage() {
         <span className="text-sm text-naukri-muted self-center ml-auto">{filteredCount} candidates · {selected.size} selected</span>
       </div>
 
-      <div className="card">
+      <div className="card overflow-hidden">
         {loading ? (
           <p className="p-6 text-naukri-muted">Loading candidates...</p>
         ) : (
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[1024px]">
+          <table className="w-full text-xs sm:text-sm table-fixed">
+            <colgroup>
+              <col className="w-10" />
+              <col className="w-[24%]" />
+              <col className="w-[26%]" />
+              <col className="w-[10%]" />
+              <col className="w-[16%]" />
+              <col className="w-[12%]" />
+            </colgroup>
             <thead className="bg-slate-50">
               <tr>
-                <th className="p-3 w-8" />
-                <th className="text-left p-3">Candidate</th>
-                <th className="text-left p-3">Job</th>
-                <th className="text-left p-3 whitespace-nowrap">Location</th>
-                <th className="text-left p-3 whitespace-nowrap">Exp</th>
-                <th className="text-left p-3 whitespace-nowrap">Source</th>
-                <th className="text-left p-3 whitespace-nowrap">Status</th>
-                <th className="text-left p-3 whitespace-nowrap min-w-[9.5rem] pr-4">Actions</th>
+                <th className="p-2" />
+                <th className="text-left p-2 font-medium">Candidate</th>
+                <th className="text-left p-2 font-medium">Job</th>
+                <th className="text-left p-2 font-medium">Source</th>
+                <th className="text-left p-2 font-medium">Status</th>
+                <th className="text-left p-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {apps.map((app) => (
-                <tr key={app.id} className="border-t">
-                  <td className="p-3">
+                <tr key={app.id} className="border-t align-top">
+                  <td className="p-2">
                     <input type="checkbox" checked={selected.has(app.id)} onChange={() => toggle(app.id)} />
                   </td>
-                  <td className="p-3">
-                    <div className="font-medium">{app.applicant_name || '—'}</div>
-                    <div className="text-xs text-slate-400">{app.applicant_email}</div>
-                    {app.applicant_education && <div className="text-xs text-slate-500">{app.applicant_education}</div>}
-                    {app.agency_name && <div className="text-xs text-violet-600">via {app.agency_name}</div>}
+                  <td className="p-2">
+                    <div className="font-medium truncate">{app.applicant_name || '—'}</div>
+                    <div className="text-xs text-slate-400 truncate">{app.applicant_email}</div>
+                    {app.applicant_education && <div className="text-xs text-slate-500 truncate">{app.applicant_education}</div>}
+                    {app.agency_name && <div className="text-xs text-violet-600 truncate">via {app.agency_name}</div>}
                   </td>
-                  <td className="p-3">
-                    <div>{app.job_title}</div>
-                    <div className="text-xs text-slate-400">{app.organization_name}</div>
+                  <td className="p-2">
+                    <div className="truncate">{app.job_title}</div>
+                    <div className="text-xs text-slate-400 truncate">{app.organization_name}</div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {[app.job_location, app.applicant_experience_years != null ? `${app.applicant_experience_years} yrs` : null].filter(Boolean).join(' · ') || '—'}
+                    </div>
                   </td>
-                  <td className="p-3 text-xs whitespace-nowrap">{app.job_location || '—'}</td>
-                  <td className="p-3 text-xs whitespace-nowrap">{app.applicant_experience_years != null ? `${app.applicant_experience_years} yrs` : '—'}</td>
-                  <td className="p-3 whitespace-nowrap">
+                  <td className="p-2">
                     <span className={app.application_source === 'direct' ? 'badge-direct' : 'badge-agency'}>{app.application_source}</span>
                   </td>
-                  <td className="p-3 whitespace-nowrap">
+                  <td className="p-2">
                     <select
                       value={app.status}
                       onChange={async (e) => {
                         await api.applications.updateStatus(app.id, e.target.value);
                         load();
                       }}
-                      className="border rounded px-2 py-1 text-xs"
+                      className="border rounded px-1.5 py-1 text-xs w-full max-w-[8.5rem]"
                     >
                       {STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                     </select>
                   </td>
-                  <td className="p-3 whitespace-nowrap min-w-[9.5rem] pr-4">
+                  <td className="p-2">
                     <button
                       type="button"
-                      className="text-teal-700 text-xs font-medium whitespace-nowrap hover:underline"
+                      className="text-teal-700 text-xs font-medium hover:underline whitespace-nowrap"
+                      title="Download resume"
                       onClick={() => downloadResume(app.id, app.resume_file_name || 'resume').catch(() => setMessage('Download failed'))}
                     >
-                      Download Resume
+                      Download
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
         )}
         {!loading && apps.length === 0 && <p className="p-6 text-slate-500">No candidates match your filters.</p>}
       </div>

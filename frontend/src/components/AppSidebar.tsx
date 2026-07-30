@@ -37,7 +37,7 @@ export default function AppSidebar() {
   });
 
   return (
-    <aside className="w-full lg:w-56 shrink-0">
+    <aside className="w-full lg:w-44 shrink-0">
       <nav className="naukri-sidebar-card sticky top-20">
         <p className="text-xs font-semibold uppercase tracking-wide text-naukri-muted mb-3">
           {user.role.replace('_', ' ')} menu
