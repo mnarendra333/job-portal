@@ -1350,12 +1350,17 @@ async def download_bulk_resumes_zip(
     added = 0
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for item, resume, _batch, job_title, org_name in rows:
-            if not storage.file_exists(resume.file_path):
+            try:
+                path, download_name = storage.materialize_resume_file(
+                    resume.file_path,
+                    file_name=resume.file_name or item.file_name,
+                    candidate_name=resume.candidate_name,
+                )
+            except ValueError:
                 continue
-            path = storage.resolve_path(resume.file_path)
             agency_seg = _safe_zip_segment(org_name or "agency")
             job_seg = _safe_zip_segment(job_title or "job")
-            file_seg = _safe_zip_segment(resume.file_name or item.file_name or "resume.pdf")
+            file_seg = _safe_zip_segment(download_name)
             arcname = f"{agency_seg}/{job_seg}/{file_seg}"
             n = 1
             while arcname in seen:

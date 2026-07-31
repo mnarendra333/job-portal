@@ -391,10 +391,12 @@ async def download_resume(
 ):
     try:
         resume, _ = await job_service.get_resume_for_download(db, user, app_id)
-        if not storage.file_exists(resume.file_path):
-            raise HTTPException(status_code=404, detail="Resume file not found on server")
-        path = storage.resolve_path(resume.file_path)
-        return FileResponse(path, filename=resume.file_name, media_type=resume.mime_type or "application/octet-stream")
+        path, download_name = storage.materialize_resume_file(
+            resume.file_path,
+            file_name=resume.file_name,
+            candidate_name=resume.candidate_name,
+        )
+        return FileResponse(path, filename=download_name, media_type="application/pdf")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

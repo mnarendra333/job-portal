@@ -106,7 +106,7 @@ You should see demo users and jobs created. Demo logins:
 
 **Note:** Free Render sleeps after ~15 min idle; first request may take 30–60 seconds.
 
-**Resume uploads on free tier:** Files live on the container disk and **may be lost on redeploy**. For production resume storage, add a Render persistent disk (paid) or S3/R2 later.
+**Resume uploads on free tier:** Files live on the container disk and **may be lost on redeploy**. The API recreates **placeholder PDFs** from DB metadata when originals are missing (demo recovery). For real `.docx` originals after redeploy, re-upload or use S3/R2 + persistent disk.
 
 ---
 
@@ -210,7 +210,7 @@ Do this **only after** the free URLs work end-to-end.
 | API 502 / timeout | Free Render waking up — retry after 60s |
 | Empty job list | Re-run seed script against Neon; check `DATABASE_URL` on Render |
 | OAuth redirect mismatch | Redirect URI in Google/LinkedIn must match Vercel URL exactly |
-| Resume gone after deploy | Expected on free Render — add persistent disk or S3 |
+| Resume gone after deploy | Expected on free Render — API serves placeholder PDFs from DB metadata; re-upload for original files or add S3 |
 
 ---
 

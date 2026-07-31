@@ -99,6 +99,29 @@ class StorageService:
         except ValueError:
             return False
 
+    def materialize_resume_file(
+        self,
+        relative_path: str,
+        *,
+        file_name: str | None = None,
+        candidate_name: str | None = None,
+    ) -> tuple[Path, str]:
+        """Return on-disk resume path and download filename, creating a placeholder PDF if missing."""
+        path = self.resolve_path(relative_path)
+        download_name = file_name or path.name
+        if path.is_file():
+            return path, download_name
+
+        title = candidate_name or Path(download_name).stem or "Resume"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        placeholder = path if path.suffix.lower() == ".pdf" else path.with_suffix(".pdf")
+        if not placeholder.is_file():
+            placeholder.write_bytes(build_demo_pdf_bytes(f"{title} — Resume"))
+
+        if download_name.lower().endswith((".doc", ".docx")):
+            download_name = f"{Path(download_name).stem}.pdf"
+        return placeholder, download_name
+
     async def save_avatar(self, user_id: uuid.UUID, upload: UploadFile) -> str:
         ext = Path(upload.filename or "").suffix.lower()
         if ext not in ALLOWED_AVATAR_EXTENSIONS:
