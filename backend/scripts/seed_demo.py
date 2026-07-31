@@ -20,6 +20,7 @@ except ImportError as e:
 from app.core.config import settings
 from app.core.database import create_async_engine_from_url
 from app.core.security import hash_password
+from app.services.storage_service import write_seed_resume_file
 from app.models import (
     ApplicationSource,
     ApplicationStatus,
@@ -209,12 +210,13 @@ async def seed(reset: bool = False) -> None:
                 session.add(JobSkill(job_id=job.id, skill_id=skill.id))
             jobs.append(job)
 
-        # Placeholder resumes (no actual files for seed)
         for seeker in seekers[:2]:
             profile = (await session.execute(select(CandidateProfile).where(CandidateProfile.user_id == seeker.id))).scalar_one()
+            rel_path = f"seed/{seeker.id}.pdf"
+            write_seed_resume_file(settings.upload_dir, rel_path, f"{seeker.full_name} — Resume")
             resume = Resume(
                 file_name=f"{seeker.full_name.replace(' ', '_')}_resume.pdf",
-                file_path=f"seed/{seeker.id}.pdf",
+                file_path=rel_path,
                 file_size=102400,
                 mime_type="application/pdf",
                 uploaded_by_user_id=seeker.id,
@@ -234,10 +236,11 @@ async def seed(reset: bool = False) -> None:
             )
             session.add(app)
 
-        # Agency-uploaded application
+        agency_rel = f"seed/agency_{agency_user.id}.pdf"
+        write_seed_resume_file(settings.upload_dir, agency_rel, "External Candidate — Resume")
         agency_resume = Resume(
             file_name="candidate_external.pdf",
-            file_path=f"seed/agency_{agency_user.id}.pdf",
+            file_path=agency_rel,
             file_size=88000,
             mime_type="application/pdf",
             uploaded_by_user_id=agency_user.id,

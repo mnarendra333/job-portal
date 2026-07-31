@@ -50,6 +50,7 @@ class UserResponse(BaseModel):
     organization_id: UUID | None
     organization_name: str | None = None
     permissions: list[str] = []
+    avatar_url: str | None = None
 
     class Config:
         from_attributes = True
@@ -80,6 +81,11 @@ class JobCreate(BaseModel):
     expiry_date: date | None = None
     education_requirement: str | None = None
     notice_period_max: str | None = None
+    work_mode: str = "on_site"
+    salary_currency: str = "INR"
+    salary_period: str = "annual"
+    visible_to_vendors: bool = True
+    visible_to_students: bool = True
     skills: list[str] = []
 
 
@@ -97,6 +103,11 @@ class JobUpdate(BaseModel):
     expiry_date: date | None = None
     education_requirement: str | None = None
     notice_period_max: str | None = None
+    work_mode: str | None = None
+    salary_currency: str | None = None
+    salary_period: str | None = None
+    visible_to_vendors: bool | None = None
+    visible_to_students: bool | None = None
     skills: list[str] | None = None
 
 
@@ -126,6 +137,11 @@ class JobResponse(BaseModel):
     skills: list[str] = []
     education_requirement: str | None = None
     notice_period_max: str | None = None
+    work_mode: str = "on_site"
+    salary_currency: str = "INR"
+    salary_period: str = "annual"
+    visible_to_vendors: bool = True
+    visible_to_students: bool = True
     application_count: int = 0
     user_has_applied: bool = False
     user_application_status: str | None = None
@@ -154,6 +170,9 @@ class JobListItem(BaseModel):
     skills: list[str] = []
     education_requirement: str | None = None
     notice_period_max: str | None = None
+    work_mode: str = "on_site"
+    salary_currency: str = "INR"
+    salary_period: str = "annual"
     match_score: int | None = None
 
 
@@ -257,6 +276,10 @@ class BulkUploadBatchResponse(BaseModel):
     id: UUID
     job_id: UUID
     job_title: str | None = None
+    uploaded_by: UUID | None = None
+    uploaded_by_name: str | None = None
+    agency_name: str | None = None
+    agency_organization_id: UUID | None = None
     total_files: int
     success_count: int
     failed_count: int
@@ -264,13 +287,25 @@ class BulkUploadBatchResponse(BaseModel):
     items: list[BulkUploadItemResponse] = []
 
 
+class RecentApplicationSummary(BaseModel):
+    id: UUID
+    job_title: str | None = None
+    applicant_name: str | None = None
+    status: str
+    application_source: str
+    created_at: datetime
+
+
 class RecruiterDashboard(BaseModel):
     total_jobs: int
     published_jobs: int
+    draft_jobs: int = 0
+    closed_jobs: int = 0
     total_applications: int
     direct_applications: int
     agency_applications: int
     by_status: dict[str, int]
+    recent_applications: list[RecentApplicationSummary] = []
 
 
 class SeekerDashboard(BaseModel):

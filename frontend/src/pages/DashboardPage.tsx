@@ -1,15 +1,45 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  FileText,
+  PlusCircle,
+  Sparkles,
+  Upload,
+  UserCog,
+  Users,
+} from 'lucide-react';
+import UserAvatar from '@/components/UserAvatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import type { AdminDashboard, AgencyDashboard, RecruiterDashboard, SeekerDashboard } from '@/types';
 
-function StatCard({ label, value, color }: { label: string; value: number | string; color: string }) {
+function StatCard({ label, value, color, icon: Icon }: { label: string; value: number | string; color: string; icon?: LucideIcon }) {
   return (
-    <div className={`card p-4 border-l-4 ${color}`}>
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="text-2xl font-bold">{value}</p>
+    <div className={`card p-4 border-l-4 ${color} flex items-start justify-between gap-2`}>
+      <div>
+        <p className="text-sm text-slate-500">{label}</p>
+        <p className="text-2xl font-bold mt-0.5">{value}</p>
+      </div>
+      {Icon && <Icon className="w-8 h-8 text-slate-200 shrink-0" strokeWidth={1.5} />}
     </div>
+  );
+}
+
+function ActionLink({ to, children, primary }: { to: string; children: React.ReactNode; primary?: boolean }) {
+  return (
+    <Link
+      to={to}
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+        primary
+          ? 'bg-teal-700 text-white hover:bg-teal-800 shadow-sm'
+          : 'border border-naukri-border text-naukri-text hover:bg-slate-50'
+      }`}
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -32,8 +62,13 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-2">Welcome, {user.full_name}</h1>
-      <p className="text-slate-500 mb-6 capitalize">{user.role.replace('_', ' ')} · {user.organization_name || user.email}</p>
+      <div className="flex items-center gap-4 mb-6">
+        <UserAvatar name={user.full_name} avatarUrl={user.avatar_url} size="lg" />
+        <div>
+          <h1 className="text-2xl font-bold">Welcome, {user.full_name}</h1>
+          <p className="text-slate-500 capitalize">{user.role.replace('_', ' ')} · {user.organization_name || user.email}</p>
+        </div>
+      </div>
 
       {user.role === 'admin' && admin && (
         <>
@@ -60,10 +95,10 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="flex flex-wrap gap-3 mb-6">
-            <Link to="/app/admin/candidates" className="px-4 py-2 bg-teal-700 text-white rounded-lg">All Candidates</Link>
-            <Link to="/app/jobs" className="px-4 py-2 border rounded-lg">All Jobs</Link>
-            <Link to="/app/admin/agency-uploads" className="px-4 py-2 border rounded-lg">Agency Uploads</Link>
-            <Link to="/app/admin/users" className="px-4 py-2 border rounded-lg">User Management</Link>
+            <ActionLink to="/app/admin/candidates" primary><Users className="w-4 h-4" /> All Candidates</ActionLink>
+            <ActionLink to="/app/jobs"><Briefcase className="w-4 h-4" /> All Jobs</ActionLink>
+            <ActionLink to="/app/admin/agency-uploads"><Building2 className="w-4 h-4" /> Agency Uploads</ActionLink>
+            <ActionLink to="/app/admin/users"><UserCog className="w-4 h-4" /> User Management</ActionLink>
           </div>
           {admin.recent_agency_uploads.length > 0 && (
             <div className="card p-4">
@@ -81,16 +116,43 @@ export default function DashboardPage() {
 
       {user.role === 'recruiter' && recruiter && (
         <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <StatCard label="Total Jobs" value={recruiter.total_jobs} color="border-blue-500" />
             <StatCard label="Published" value={recruiter.published_jobs} color="border-emerald-500" />
-            <StatCard label="Applications" value={recruiter.total_applications} color="border-violet-500" />
-            <StatCard label="Agency Uploads" value={recruiter.agency_applications} color="border-amber-500" />
+            <StatCard label="Draft" value={recruiter.draft_jobs ?? 0} color="border-amber-500" />
+            <StatCard label="Closed" value={recruiter.closed_jobs ?? 0} color="border-slate-400" />
           </div>
-          <div className="flex gap-3">
-            <Link to="/app/jobs/new" className="px-4 py-2 bg-teal-700 text-white rounded-lg">Post New Job</Link>
-            <Link to="/app/jobs" className="px-4 py-2 border rounded-lg">Manage Jobs</Link>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <StatCard label="Total Applications" value={recruiter.total_applications} color="border-violet-500" />
+            <StatCard label="Direct Applications" value={recruiter.direct_applications} color="border-teal-500" />
+            <StatCard label="Agency Applications" value={recruiter.agency_applications} color="border-indigo-500" />
           </div>
+          {Object.keys(recruiter.by_status).length > 0 && (
+            <div className="card p-4 mb-6">
+              <h2 className="font-semibold mb-3">Application pipeline</h2>
+              <div className="flex flex-wrap gap-3">
+                {Object.entries(recruiter.by_status).map(([s, n]) => (
+                  <span key={s} className="text-sm bg-slate-100 px-3 py-1 rounded capitalize">{s.replace(/_/g, ' ')}: {n}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-3 mb-6">
+            <ActionLink to="/app/jobs/new" primary><PlusCircle className="w-4 h-4" /> Post New Job</ActionLink>
+            <ActionLink to="/app/jobs"><Briefcase className="w-4 h-4" /> Manage Jobs</ActionLink>
+            <ActionLink to="/jobs"><Sparkles className="w-4 h-4" /> Find Jobs</ActionLink>
+          </div>
+          {(recruiter.recent_applications?.length ?? 0) > 0 && (
+            <div className="card p-4">
+              <h2 className="font-semibold mb-3">Recent applications</h2>
+              {recruiter.recent_applications!.map((a) => (
+                <div key={a.id} className="text-sm py-2 border-b last:border-0 flex justify-between gap-4">
+                  <span>{a.applicant_name ?? 'Candidate'} · {a.job_title}</span>
+                  <span className="text-slate-500 capitalize shrink-0">{a.status.replace(/_/g, ' ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
@@ -101,9 +163,9 @@ export default function DashboardPage() {
             <StatCard label="Recommended for you" value={seeker.recommended_count ?? 0} color="border-violet-500" />
           </div>
           <div className="flex gap-3">
-            <Link to="/jobs?tab=recommended" className="px-4 py-2 bg-teal-700 text-white rounded-lg">Recommended Jobs</Link>
-            <Link to="/app/applications" className="px-4 py-2 border rounded-lg">My Applications</Link>
-            <Link to="/app/profile" className="px-4 py-2 border rounded-lg">Edit Profile</Link>
+            <ActionLink to="/jobs?tab=recommended" primary><Sparkles className="w-4 h-4" /> Recommended Jobs</ActionLink>
+            <ActionLink to="/app/applications"><FileText className="w-4 h-4" /> My Applications</ActionLink>
+            <ActionLink to="/app/profile"><Users className="w-4 h-4" /> Edit Profile</ActionLink>
           </div>
         </>
       )}
@@ -115,8 +177,8 @@ export default function DashboardPage() {
             <StatCard label="Upload Batches" value={agency.total_batches} color="border-blue-500" />
           </div>
           <div className="flex gap-3 mb-6">
-            <Link to="/app/upload" className="px-4 py-2 bg-violet-700 text-white rounded-lg">Upload Candidates</Link>
-            <Link to="/jobs" className="px-4 py-2 border rounded-lg">Browse Jobs</Link>
+            <ActionLink to="/app/upload" primary><Upload className="w-4 h-4" /> Upload Candidates</ActionLink>
+            <ActionLink to="/jobs"><Briefcase className="w-4 h-4" /> Browse Jobs</ActionLink>
           </div>
           {agency.recent_batches.length > 0 && (
             <div className="card p-4">

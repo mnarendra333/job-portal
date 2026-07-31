@@ -34,6 +34,17 @@ class EmploymentType(str, enum.Enum):
     internship = "internship"
 
 
+class WorkMode(str, enum.Enum):
+    on_site = "on_site"
+    hybrid = "hybrid"
+    remote = "remote"
+
+
+class SalaryPeriod(str, enum.Enum):
+    annual = "annual"
+    monthly = "monthly"
+
+
 class JobStatus(str, enum.Enum):
     draft = "draft"
     published = "published"
@@ -81,6 +92,7 @@ class User(Base):
     auth_provider: Mapped[AuthProvider] = mapped_column(Enum(AuthProvider, name="auth_provider"), default=AuthProvider.local)
     organization_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(1000))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -114,7 +126,12 @@ class Job(Base):
     salary_min: Mapped[float | None] = mapped_column(Numeric(12, 2))
     salary_max: Mapped[float | None] = mapped_column(Numeric(12, 2))
     salary_visible: Mapped[bool] = mapped_column(Boolean, default=False)
+    salary_currency: Mapped[str] = mapped_column(String(3), default="INR")
+    salary_period: Mapped[str] = mapped_column(String(20), default="annual")
     openings: Mapped[int] = mapped_column(Integer, default=1)
+    work_mode: Mapped[str] = mapped_column(String(20), default="on_site")
+    visible_to_vendors: Mapped[bool] = mapped_column(Boolean, default=True)
+    visible_to_students: Mapped[bool] = mapped_column(Boolean, default=True)
     education_requirement: Mapped[str | None] = mapped_column(String(255))
     notice_period_max: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[JobStatus] = mapped_column(Enum(JobStatus, name="job_status"), default=JobStatus.draft)

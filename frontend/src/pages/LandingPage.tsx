@@ -1,17 +1,8 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import JobCard from '@/components/jobs/JobCard';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
-import type { JobListItem } from '@/types';
 
 export default function LandingPage() {
   const { user } = useAuth();
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
-
-  useEffect(() => {
-    api.jobs.list().then(setJobs).catch(() => setJobs([]));
-  }, []);
 
   return (
     <div>
@@ -22,15 +13,20 @@ export default function LandingPage() {
             Employers post jobs. Candidates apply directly. Agencies upload candidate resumes in bulk — all in one portal.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <Link to="/jobs" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
-              Browse Jobs
-            </Link>
             {user ? (
-              <Link to="/app" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
-                Go to Dashboard
-              </Link>
+              <>
+                <Link to="/jobs" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
+                  Browse Jobs
+                </Link>
+                <Link to="/app" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
+                  Go to Dashboard
+                </Link>
+              </>
             ) : (
               <>
+                <Link to="/login" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
+                  Sign in to Browse Jobs
+                </Link>
                 <Link to="/register" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
                   Get Started
                 </Link>
@@ -64,18 +60,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-4 pb-16">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-naukri-text">Featured openings</h2>
-          <Link to="/jobs" className="text-sm font-medium text-naukri-blue hover:underline">View all jobs →</Link>
-        </div>
-        <div className="flex flex-col gap-4">
-          {jobs.slice(0, 5).map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-          {jobs.length === 0 && <p className="text-naukri-muted">No jobs posted yet.</p>}
-        </div>
-      </section>
+      {!user && (
+        <section className="max-w-6xl mx-auto px-4 pb-16 text-center">
+          <p className="text-naukri-muted mb-4">Job listings are available after you sign in.</p>
+          <Link to="/login" className="text-sm font-medium text-naukri-blue hover:underline">Sign in to view openings →</Link>
+        </section>
+      )}
     </div>
   );
 }

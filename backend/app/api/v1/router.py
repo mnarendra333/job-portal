@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_optional_user, require_permission
@@ -84,6 +84,18 @@ async def update_account(
         raise _handle_value_error(e)
 
 
+@router.post("/auth/avatar", response_model=UserResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        return await job_service.upload_avatar(db, user, file, storage)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
 @router.post("/auth/change-password", status_code=204)
 async def change_password(
     body: ChangePasswordRequest,
@@ -127,19 +139,29 @@ async def oauth_linkedin(body: OAuthRequest, db: AsyncSession = Depends(get_db))
         raise _handle_value_error(e)
 
 
-# --- Public jobs ---
+# --- Jobs (authenticated) ---
 @router.get("/jobs/locations/all", response_model=list[str])
-async def all_job_locations(db: AsyncSession = Depends(get_db)):
+async def all_job_locations(
+    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    db: AsyncSession = Depends(get_db),
+):
     return await job_service.list_all_job_locations(db)
 
 
 @router.get("/jobs/locations", response_model=list[str])
-async def job_locations(q: str | None = None, db: AsyncSession = Depends(get_db)):
+async def job_locations(
+    q: str | None = None,
+    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    db: AsyncSession = Depends(get_db),
+):
     return await job_service.list_job_locations(db, q)
 
 
 @router.get("/jobs/filters", response_model=JobFilterMeta)
-async def job_filters(db: AsyncSession = Depends(get_db)):
+async def job_filters(
+    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    db: AsyncSession = Depends(get_db),
+):
     data = await job_service.get_job_filter_meta(db)
     return JobFilterMeta(**data)
 
@@ -157,6 +179,7 @@ async def list_jobs(
     max_salary: float | None = None,
     education: str | None = None,
     notice_period: str | None = None,
+    user: User = Depends(require_permission(Permission.JOBS_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     skill_list = [s.strip() for s in skills.split(",") if s.strip()] if skills else None
@@ -173,6 +196,7 @@ async def list_jobs(
         max_salary,
         education,
         notice_period,
+        user=user,
     )
 
 
@@ -196,7 +220,11 @@ async def my_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
-async def get_job(job_id: UUID, db: AsyncSession = Depends(get_db), user: User | None = Depends(get_optional_user)):
+async def get_job(
+    job_id: UUID,
+    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    db: AsyncSession = Depends(get_db),
+):
     try:
         return await job_service.get_job(db, job_id, user)
     except ValueError as e:
@@ -363,6 +391,8 @@ async def download_resume(
 ):
     try:
         resume, _ = await job_service.get_resume_for_download(db, user, app_id)
+        if not storage.file_exists(resume.file_path):
+            raise HTTPException(status_code=404, detail="Resume file not found on server")
         path = storage.resolve_path(resume.file_path)
         return FileResponse(path, filename=resume.file_name, media_type=resume.mime_type or "application/octet-stream")
     except ValueError as e:
@@ -390,6 +420,58 @@ async def all_bulk_uploads(
 ):
     try:
         return await job_service.list_all_bulk_batches(db, user)
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.get("/bulk-uploads/download/all")
+async def download_all_agency_resumes(
+    user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        data, filename = await job_service.download_bulk_resumes_zip(db, user, storage)
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.get("/bulk-uploads/download/agency/{org_id}")
+async def download_agency_resumes(
+    org_id: UUID,
+    user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        data, filename = await job_service.download_bulk_resumes_zip(
+            db, user, storage, agency_organization_id=org_id
+        )
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as e:
+        raise _handle_value_error(e)
+
+
+@router.get("/bulk-uploads/download/batch/{batch_id}")
+async def download_batch_resumes(
+    batch_id: UUID,
+    user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        data, filename = await job_service.download_bulk_resumes_zip(db, user, storage, batch_id=batch_id)
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     except ValueError as e:
         raise _handle_value_error(e)
 

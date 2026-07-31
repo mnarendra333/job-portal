@@ -1,0 +1,50 @@
+import type { LucideIcon } from 'lucide-react';
+import {
+  Briefcase,
+  Building2,
+  FileText,
+  History,
+  LayoutDashboard,
+  PlusCircle,
+  Search,
+  Settings,
+  Sparkles,
+  Upload,
+  User,
+  Users,
+} from 'lucide-react';
+
+export const NAV_ICONS: Record<string, LucideIcon> = {
+  Dashboard: LayoutDashboard,
+  'My Profile': User,
+  'My Applications': FileText,
+  'Recommended Jobs': Sparkles,
+  'Find Jobs': Search,
+  'Browse Jobs': Search,
+  'My Jobs': Briefcase,
+  'Post New Job': PlusCircle,
+  'Upload Candidates': Upload,
+  'Upload History': History,
+  'All Candidates': Users,
+  'Agency Uploads': Building2,
+  'User Management': Users,
+  Settings: Settings,
+};
+
+export const MENU_ICONS: Record<string, LucideIcon> = {
+  Dashboard: LayoutDashboard,
+  'Edit Profile': User,
+  'My Applications': FileText,
+  'Browse Jobs': Search,
+  'Find Jobs': Search,
+  'My Jobs': Briefcase,
+  'Post New Job': PlusCircle,
+  'All Jobs': Briefcase,
+  'All Candidates': Users,
+  'Agency Uploads': Building2,
+  'User Management': Users,
+  'Upload Candidates': Upload,
+  'Upload History': History,
+  Settings: Settings,
+  'Change Password': Settings,
+};

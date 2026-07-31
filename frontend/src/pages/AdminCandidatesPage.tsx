@@ -19,9 +19,11 @@ export default function AdminCandidatesPage() {
   const [skill, setSkill] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
+    setError('');
     api.admin.applications({
       keyword: keyword || undefined,
       status: status || undefined,
@@ -33,7 +35,10 @@ export default function AdminCandidatesPage() {
       skill: skill || undefined,
     })
       .then(setApps)
-      .catch(() => setApps([]))
+      .catch((err) => {
+        setApps([]);
+        setError(err instanceof Error ? err.message : 'Failed to load candidates');
+      })
       .finally(() => setLoading(false));
   }, [keyword, status, source, location, education, noticePeriod, minExperience, skill]);
 
@@ -80,6 +85,7 @@ export default function AdminCandidatesPage() {
       <p className="text-sm text-naukri-muted mb-6">Screen, filter, and manage every application including agency uploads.</p>
 
       {message && <p className="text-sm text-emerald-700 mb-4">{message}</p>}
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
       <div className="card p-4 mb-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <input placeholder="Search name, email, job..." className="border rounded-lg px-3 py-2 text-sm" value={keyword} onChange={(e) => setKeyword(e.target.value)} />

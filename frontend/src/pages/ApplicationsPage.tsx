@@ -21,8 +21,12 @@ export default function ApplicationsPage() {
   useEffect(() => { load(); }, [id]);
 
   const updateStatus = async (appId: string, status: string) => {
-    await api.applications.updateStatus(appId, status);
-    load();
+    setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a)));
+    try {
+      await api.applications.updateStatus(appId, status);
+    } catch {
+      load();
+    }
   };
 
   const filtered = useMemo(() => apps.filter((a) => {

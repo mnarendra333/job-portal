@@ -10,6 +10,7 @@ export interface User {
   organization_id?: string;
   organization_name?: string;
   permissions?: string[];
+  avatar_url?: string | null;
 }
 
 export interface AdminUser {
@@ -38,6 +39,9 @@ export interface JobListItem {
   salary_min?: number;
   salary_max?: number;
   salary_visible: boolean;
+  salary_currency?: string;
+  salary_period?: string;
+  work_mode?: string;
   openings?: number;
   published_at?: string;
   skills: string[];
@@ -67,6 +71,11 @@ export interface Job extends JobListItem {
   application_count: number;
   education_requirement?: string;
   notice_period_max?: string;
+  work_mode?: string;
+  salary_currency?: string;
+  salary_period?: string;
+  visible_to_vendors?: boolean;
+  visible_to_students?: boolean;
   user_has_applied?: boolean;
   user_application_status?: string;
 }
@@ -110,10 +119,20 @@ export interface CandidateProfile {
 export interface RecruiterDashboard {
   total_jobs: number;
   published_jobs: number;
+  draft_jobs?: number;
+  closed_jobs?: number;
   total_applications: number;
   direct_applications: number;
   agency_applications: number;
   by_status: Record<string, number>;
+  recent_applications?: {
+    id: string;
+    job_title?: string;
+    applicant_name?: string;
+    status: string;
+    application_source: string;
+    created_at: string;
+  }[];
 }
 
 export interface SeekerDashboard {
@@ -126,6 +145,10 @@ export interface BulkUploadBatch {
   id: string;
   job_id: string;
   job_title?: string;
+  uploaded_by?: string;
+  uploaded_by_name?: string;
+  agency_name?: string;
+  agency_organization_id?: string;
   total_files: number;
   success_count: number;
   failed_count: number;

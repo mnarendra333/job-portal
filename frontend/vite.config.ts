@@ -6,6 +6,6 @@ export default defineConfig({
   resolve: { alias: { '@': '/src' } },
   server: {
     port: 5175,
-    proxy: { '/api': { target: 'http://localhost:8002', changeOrigin: true } },
+    proxy: { '/api': { target: 'http://localhost:8002', changeOrigin: true }, '/uploads': { target: 'http://localhost:8002', changeOrigin: true } },
   },
 })

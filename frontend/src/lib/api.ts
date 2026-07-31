@@ -1,5 +1,9 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1';
 
+export function apiUrl(path: string) {
+  return `${API_BASE}${path}`;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -61,6 +65,11 @@ export const api = {
   account: {
     update: (data: { full_name?: string; mobile?: string }) =>
       request<import('@/types').User>('/auth/account', { method: 'PUT', body: JSON.stringify(data) }),
+    uploadAvatar: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return request<import('@/types').User>('/auth/avatar', { method: 'POST', body: form });
+    },
     changePassword: (current_password: string, new_password: string) =>
       request<void>('/auth/change-password', {
         method: 'POST',
@@ -163,6 +172,9 @@ export const api = {
       return request<import('@/types').Application[]>(`/applications/all${qs ? `?${qs}` : ''}`);
     },
     agencyUploads: () => request<import('@/types').BulkUploadBatch[]>('/bulk-uploads/all'),
+    downloadAllAgencyResumesUrl: () => '/bulk-uploads/download/all',
+    downloadAgencyResumesUrl: (orgId: string) => `/bulk-uploads/download/agency/${orgId}`,
+    downloadBatchResumesUrl: (batchId: string) => `/bulk-uploads/download/batch/${batchId}`,
     users: (role?: string) => {
       const qs = role ? `?role=${encodeURIComponent(role)}` : '';
       return request<import('@/types').AdminUser[]>(`/admin/users${qs}`);

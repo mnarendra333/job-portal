@@ -1,3 +1,6 @@
+import io
+import re
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -111,6 +114,101 @@ async def _org_name(db: AsyncSession, org_id: UUID | None) -> str | None:
     return result.scalar_one_or_none()
 
 
+async def _bulk_job_skills(db: AsyncSession, job_ids: list[UUID]) -> dict[UUID, list[str]]:
+    if not job_ids:
+        return {}
+    result = await db.execute(
+        select(JobSkill.job_id, Skill.name)
+        .join(Skill, Skill.id == JobSkill.skill_id)
+        .where(JobSkill.job_id.in_(job_ids))
+        .order_by(Skill.name)
+    )
+    out: dict[UUID, list[str]] = {jid: [] for jid in job_ids}
+    for job_id, name in result.all():
+        out[job_id].append(name)
+    return out
+
+
+async def _bulk_org_names(db: AsyncSession, org_ids: list[UUID]) -> dict[UUID, str]:
+    if not org_ids:
+        return {}
+    result = await db.execute(select(Organization.id, Organization.name).where(Organization.id.in_(org_ids)))
+    return {row[0]: row[1] for row in result.all()}
+
+
+async def _bulk_application_counts(db: AsyncSession, job_ids: list[UUID]) -> dict[UUID, int]:
+    if not job_ids:
+        return {}
+    result = await db.execute(
+        select(JobApplication.job_id, func.count())
+        .where(JobApplication.job_id.in_(job_ids))
+        .group_by(JobApplication.job_id)
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+def _visibility_filter(user: User | None):
+    """Return SQLAlchemy filter for published job visibility by role."""
+    if not user:
+        return None
+    if user.role == UserRole.agency:
+        return Job.visible_to_vendors.is_(True)
+    if user.role == UserRole.job_seeker:
+        return Job.visible_to_students.is_(True)
+    return None
+
+
+def _job_visible_to_user(job: Job, user: User | None) -> bool:
+    if not user or user.role in (UserRole.admin, UserRole.recruiter):
+        return True
+    if user.role == UserRole.agency:
+        return job.visible_to_vendors
+    if user.role == UserRole.job_seeker:
+        return job.visible_to_students
+    return True
+
+
+def _build_job_response(
+    job: Job,
+    skills: list[str],
+    org_name: str | None,
+    application_count: int = 0,
+    user_has_applied: bool = False,
+    user_application_status: str | None = None,
+) -> JobResponse:
+    return JobResponse(
+        id=job.id,
+        organization_id=job.organization_id,
+        organization_name=org_name,
+        posted_by=job.posted_by,
+        title=job.title,
+        description=job.description,
+        location=job.location,
+        employment_type=job.employment_type.value,
+        experience_min=job.experience_min,
+        experience_max=job.experience_max,
+        salary_min=float(job.salary_min) if job.salary_min else None,
+        salary_max=float(job.salary_max) if job.salary_max else None,
+        salary_visible=job.salary_visible,
+        salary_currency=getattr(job, "salary_currency", None) or "INR",
+        salary_period=getattr(job, "salary_period", None) or "annual",
+        openings=job.openings,
+        work_mode=getattr(job, "work_mode", None) or "on_site",
+        visible_to_vendors=getattr(job, "visible_to_vendors", True),
+        visible_to_students=getattr(job, "visible_to_students", True),
+        status=job.status.value,
+        published_at=job.published_at,
+        expiry_date=job.expiry_date,
+        created_at=job.created_at,
+        skills=skills,
+        education_requirement=job.education_requirement,
+        notice_period_max=job.notice_period_max,
+        application_count=application_count,
+        user_has_applied=user_has_applied,
+        user_application_status=user_application_status,
+    )
+
+
 async def _org_details(db: AsyncSession, org_id: UUID | None) -> tuple[str | None, str | None, float | None, int | None]:
     if not org_id:
         return None, None, None, None
@@ -146,6 +244,7 @@ def user_to_response(user: User, org_name: str | None = None) -> UserResponse:
         organization_id=user.organization_id,
         organization_name=org_name,
         permissions=perms,
+        avatar_url=user.avatar_url,
     )
 
 
@@ -222,6 +321,16 @@ async def update_account(db: AsyncSession, user: User, body: AccountUpdateReques
     return await get_user_response(db, user)
 
 
+async def upload_avatar(
+    db: AsyncSession, user: User, upload: UploadFile, storage: StorageService,
+) -> UserResponse:
+    rel_path = await storage.save_avatar(user.id, upload)
+    user.avatar_url = rel_path
+    await db.commit()
+    await db.refresh(user)
+    return await get_user_response(db, user)
+
+
 async def change_password(db: AsyncSession, user: User, current_password: str, new_password: str) -> None:
     if user.auth_provider != AuthProvider.local:
         raise ValueError("Password change is only available for email/password accounts")
@@ -250,7 +359,12 @@ async def create_job(db: AsyncSession, user: User, body: JobCreate) -> JobRespon
         salary_min=body.salary_min,
         salary_max=body.salary_max,
         salary_visible=body.salary_visible,
+        salary_currency=body.salary_currency,
+        salary_period=body.salary_period,
         openings=body.openings,
+        work_mode=body.work_mode,
+        visible_to_vendors=body.visible_to_vendors,
+        visible_to_students=body.visible_to_students,
         expiry_date=body.expiry_date,
         education_requirement=body.education_requirement,
         notice_period_max=body.notice_period_max,
@@ -269,8 +383,9 @@ async def create_job(db: AsyncSession, user: User, body: JobCreate) -> JobRespon
 async def update_job(db: AsyncSession, user: User, job_id: UUID, body: JobUpdate) -> JobResponse:
     job = await _get_owned_job(db, user, job_id)
     for field in ("title", "description", "location", "experience_min", "experience_max",
-                  "salary_min", "salary_max", "salary_visible", "openings", "expiry_date",
-                  "education_requirement", "notice_period_max"):
+                  "salary_min", "salary_max", "salary_visible", "salary_currency", "salary_period",
+                  "openings", "work_mode", "visible_to_vendors", "visible_to_students",
+                  "expiry_date", "education_requirement", "notice_period_max"):
         val = getattr(body, field)
         if val is not None:
             setattr(job, field, val)
@@ -321,6 +436,8 @@ async def get_job(db: AsyncSession, job_id: UUID, user: User | None = None) -> J
         raise ValueError("Job not found")
     if job.status != JobStatus.published and (not user or (user.role not in (UserRole.admin,) and job.organization_id != user.organization_id)):
         raise ValueError("Job not found")
+    if job.status == JobStatus.published and not _job_visible_to_user(job, user):
+        raise ValueError("Job not found")
     skills = await _job_skills(db, job.id)
     org_name = await _org_name(db, job.organization_id)
     count_result = await db.execute(
@@ -340,28 +457,8 @@ async def get_job(db: AsyncSession, job_id: UUID, user: User | None = None) -> J
         if app_status:
             user_has_applied = True
             user_application_status = app_status.value
-    return JobResponse(
-        id=job.id,
-        organization_id=job.organization_id,
-        organization_name=org_name,
-        posted_by=job.posted_by,
-        title=job.title,
-        description=job.description,
-        location=job.location,
-        employment_type=job.employment_type.value,
-        experience_min=job.experience_min,
-        experience_max=job.experience_max,
-        salary_min=float(job.salary_min) if job.salary_min else None,
-        salary_max=float(job.salary_max) if job.salary_max else None,
-        salary_visible=job.salary_visible,
-        openings=job.openings,
-        status=job.status.value,
-        published_at=job.published_at,
-        expiry_date=job.expiry_date,
-        created_at=job.created_at,
-        skills=skills,
-        education_requirement=job.education_requirement,
-        notice_period_max=job.notice_period_max,
+    return _build_job_response(
+        job, skills, org_name,
         application_count=count_result.scalar() or 0,
         user_has_applied=user_has_applied,
         user_application_status=user_application_status,
@@ -381,8 +478,12 @@ async def list_published_jobs(
     max_salary: float | None = None,
     education: str | None = None,
     notice_period: str | None = None,
+    user: User | None = None,
 ) -> list[JobListItem]:
     q = select(Job).where(Job.status == JobStatus.published)
+    vis = _visibility_filter(user)
+    if vis is not None:
+        q = q.where(vis)
     if keyword:
         kw = keyword.strip()
         skill_match = (
@@ -420,10 +521,16 @@ async def list_published_jobs(
     q = q.order_by(Job.published_at.desc().nullslast())
     result = await db.execute(q)
     jobs = result.scalars().unique().all()
+    if not jobs:
+        return []
+    job_ids = [j.id for j in jobs]
+    org_ids = list({j.organization_id for j in jobs})
+    skills_map = await _bulk_job_skills(db, job_ids)
+    org_names = await _bulk_org_names(db, org_ids)
     items = []
     for job in jobs:
-        skills = await _job_skills(db, job.id)
-        org_name, logo, rating, reviews = await _org_details(db, job.organization_id)
+        org_name = org_names.get(job.organization_id)
+        _, logo, rating, reviews = await _org_details(db, job.organization_id)
         items.append(JobListItem(
             id=job.id,
             title=job.title,
@@ -439,9 +546,12 @@ async def list_published_jobs(
             salary_min=float(job.salary_min) if job.salary_min else None,
             salary_max=float(job.salary_max) if job.salary_max else None,
             salary_visible=job.salary_visible,
+            salary_currency=getattr(job, "salary_currency", None) or "INR",
+            salary_period=getattr(job, "salary_period", None) or "annual",
             openings=job.openings,
+            work_mode=getattr(job, "work_mode", None) or "on_site",
             published_at=job.published_at,
-            skills=skills,
+            skills=skills_map.get(job.id, []),
             education_requirement=job.education_requirement,
             notice_period_max=job.notice_period_max,
         ))
@@ -632,10 +742,22 @@ async def list_my_jobs(db: AsyncSession, user: User) -> list[JobResponse]:
             select(Job).where(Job.organization_id == user.organization_id).order_by(Job.created_at.desc())
         )
     jobs = result.scalars().all()
-    out = []
-    for job in jobs:
-        out.append(await get_job(db, job.id, user))
-    return out
+    if not jobs:
+        return []
+    job_ids = [j.id for j in jobs]
+    org_ids = list({j.organization_id for j in jobs})
+    skills_map = await _bulk_job_skills(db, job_ids)
+    org_map = await _bulk_org_names(db, org_ids)
+    counts_map = await _bulk_application_counts(db, job_ids)
+    return [
+        _build_job_response(
+            job,
+            skills_map.get(job.id, []),
+            org_map.get(job.organization_id),
+            application_count=counts_map.get(job.id, 0),
+        )
+        for job in jobs
+    ]
 
 
 async def get_profile(db: AsyncSession, user: User) -> CandidateProfileResponse:
@@ -859,12 +981,23 @@ async def get_bulk_batch(db: AsyncSession, batch_id: UUID, user: User) -> BulkUp
         raise ValueError("Not authorized")
     job_result = await db.execute(select(Job.title).where(Job.id == batch.job_id))
     job_title = job_result.scalar_one_or_none()
+    uploader_result = await db.execute(
+        select(User.full_name, User.organization_id, Organization.name)
+        .select_from(User)
+        .outerjoin(Organization, Organization.id == User.organization_id)
+        .where(User.id == batch.uploaded_by)
+    )
+    uploader_row = uploader_result.one_or_none()
     items_result = await db.execute(select(BulkUploadItem).where(BulkUploadItem.batch_id == batch.id))
     items = items_result.scalars().all()
     return BulkUploadBatchResponse(
         id=batch.id,
         job_id=batch.job_id,
         job_title=job_title,
+        uploaded_by=batch.uploaded_by,
+        uploaded_by_name=uploader_row[0] if uploader_row else None,
+        agency_name=uploader_row[2] if uploader_row else None,
+        agency_organization_id=uploader_row[1] if uploader_row else None,
         total_files=batch.total_files,
         success_count=batch.success_count,
         failed_count=batch.failed_count,
@@ -882,6 +1015,94 @@ async def list_my_bulk_batches(db: AsyncSession, user: User) -> list[BulkUploadB
     )
     batches = result.scalars().all()
     return [await get_bulk_batch(db, b.id, user) for b in batches]
+
+
+async def _applications_to_responses(db: AsyncSession, apps: list[JobApplication]) -> list[ApplicationResponse]:
+    if not apps:
+        return []
+    job_ids = list({a.job_id for a in apps})
+    resume_ids = list({a.resume_id for a in apps if a.resume_id})
+    agency_org_ids = list({a.agency_organization_id for a in apps if a.agency_organization_id})
+    applicant_ids = list({a.applicant_user_id for a in apps if a.applicant_user_id})
+
+    job_rows = (await db.execute(
+        select(Job.id, Job.title, Job.location, Job.organization_id).where(Job.id.in_(job_ids))
+    )).all()
+    job_map = {r[0]: (r[1], r[2], r[3]) for r in job_rows}
+
+    org_ids = list({r[3] for r in job_rows if r[3]} | set(agency_org_ids))
+    org_map = await _bulk_org_names(db, org_ids)
+
+    resume_map: dict[UUID, tuple] = {}
+    if resume_ids:
+        rr = await db.execute(
+            select(Resume.id, Resume.file_name, Resume.candidate_name, Resume.candidate_email)
+            .where(Resume.id.in_(resume_ids))
+        )
+        resume_map = {r[0]: (r[1], r[2], r[3]) for r in rr.all()}
+
+    user_map: dict[UUID, tuple] = {}
+    if applicant_ids:
+        ur = await db.execute(
+            select(User.id, User.full_name, User.email).where(User.id.in_(applicant_ids))
+        )
+        user_map = {r[0]: (r[1], r[2]) for r in ur.all()}
+
+    profile_map: dict[UUID, tuple] = {}
+    if applicant_ids:
+        pr = await db.execute(
+            select(
+                CandidateProfile.user_id,
+                CandidateProfile.notice_period,
+                CandidateProfile.education,
+                CandidateProfile.total_experience_years,
+            ).where(CandidateProfile.user_id.in_(applicant_ids))
+        )
+        profile_map = {r[0]: (r[1], r[2], r[3]) for r in pr.all()}
+
+    out: list[ApplicationResponse] = []
+    for app in apps:
+        job_title = job_location = org_name = None
+        job_row = job_map.get(app.job_id)
+        if job_row:
+            job_title, job_location, org_id = job_row
+            org_name = org_map.get(org_id) if org_id else None
+        resume_row = resume_map.get(app.resume_id)
+        resume_name = resume_row[0] if resume_row else None
+        candidate_name = resume_row[1] if resume_row else None
+        candidate_email = resume_row[2] if resume_row else None
+        agency_name = org_map.get(app.agency_organization_id) if app.agency_organization_id else None
+        if app.applicant_user_id and not candidate_name:
+            urow = user_map.get(app.applicant_user_id)
+            if urow:
+                candidate_name, candidate_email = urow
+        applicant_notice_period = applicant_education = None
+        applicant_experience_years = None
+        if app.applicant_user_id:
+            prow = profile_map.get(app.applicant_user_id)
+            if prow:
+                applicant_notice_period, applicant_education = prow[0], prow[1]
+                applicant_experience_years = float(prow[2]) if prow[2] is not None else None
+        out.append(ApplicationResponse(
+            id=app.id,
+            job_id=app.job_id,
+            job_title=job_title,
+            job_location=job_location,
+            organization_name=org_name,
+            resume_id=app.resume_id,
+            resume_file_name=resume_name,
+            application_source=app.application_source.value,
+            applicant_name=candidate_name,
+            applicant_email=candidate_email,
+            applicant_notice_period=applicant_notice_period,
+            applicant_education=applicant_education,
+            applicant_experience_years=applicant_experience_years,
+            agency_name=agency_name,
+            cover_letter=app.cover_letter,
+            status=app.status.value,
+            created_at=app.created_at,
+        ))
+    return out
 
 
 async def _application_to_response(db: AsyncSession, app: JobApplication) -> ApplicationResponse:
@@ -951,7 +1172,7 @@ async def list_job_applications(db: AsyncSession, user: User, job_id: UUID) -> l
         select(JobApplication).where(JobApplication.job_id == job.id).order_by(JobApplication.created_at.desc())
     )
     apps = result.scalars().all()
-    return [await _application_to_response(db, a) for a in apps]
+    return await _applications_to_responses(db, apps)
 
 
 async def list_my_applications(db: AsyncSession, user: User) -> list[ApplicationResponse]:
@@ -959,7 +1180,7 @@ async def list_my_applications(db: AsyncSession, user: User) -> list[Application
         select(JobApplication).where(JobApplication.applicant_user_id == user.id).order_by(JobApplication.created_at.desc())
     )
     apps = result.scalars().all()
-    return [await _application_to_response(db, a) for a in apps]
+    return await _applications_to_responses(db, apps)
 
 
 async def update_application_status(db: AsyncSession, user: User, app_id: UUID, status: str) -> ApplicationResponse:
@@ -1029,10 +1250,12 @@ async def list_all_applications(
     q = q.order_by(JobApplication.created_at.desc())
     result = await db.execute(q)
     apps = result.scalars().unique().all()
+    if not apps:
+        return []
 
+    responses = await _applications_to_responses(db, apps)
     out: list[ApplicationResponse] = []
-    for app in apps:
-        resp = await _application_to_response(db, app)
+    for resp in responses:
         if education and (resp.applicant_education or "").lower() != education.lower():
             continue
         if notice_period and (resp.applicant_notice_period or "") != notice_period:
@@ -1085,3 +1308,73 @@ async def list_all_bulk_batches(db: AsyncSession, user: User) -> list[BulkUpload
     result = await db.execute(select(BulkUploadBatch).order_by(BulkUploadBatch.created_at.desc()))
     batches = result.scalars().all()
     return [await get_bulk_batch(db, b.id, user) for b in batches]
+
+
+def _safe_zip_segment(name: str, fallback: str = "file") -> str:
+    cleaned = re.sub(r"[^\w.\- ]", "_", (name or fallback).strip())
+    return (cleaned[:120] or fallback).replace(" ", "_")
+
+
+async def download_bulk_resumes_zip(
+    db: AsyncSession,
+    user: User,
+    storage: StorageService,
+    *,
+    batch_id: UUID | None = None,
+    agency_organization_id: UUID | None = None,
+) -> tuple[bytes, str]:
+    if user.role != UserRole.admin:
+        raise ValueError("Admin access required")
+
+    q = (
+        select(BulkUploadItem, Resume, BulkUploadBatch, Job.title, Organization.name)
+        .join(BulkUploadBatch, BulkUploadBatch.id == BulkUploadItem.batch_id)
+        .join(Resume, Resume.id == BulkUploadItem.resume_id)
+        .join(Job, Job.id == BulkUploadBatch.job_id)
+        .join(User, User.id == BulkUploadBatch.uploaded_by)
+        .outerjoin(Organization, Organization.id == User.organization_id)
+        .where(BulkUploadItem.status == BulkItemStatus.success)
+        .where(BulkUploadItem.resume_id.isnot(None))
+    )
+    if batch_id:
+        q = q.where(BulkUploadBatch.id == batch_id)
+    if agency_organization_id:
+        q = q.where(User.organization_id == agency_organization_id)
+
+    rows = (await db.execute(q)).all()
+    if not rows:
+        raise ValueError("No resumes found to download")
+
+    buf = io.BytesIO()
+    seen: set[str] = set()
+    added = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for item, resume, _batch, job_title, org_name in rows:
+            if not storage.file_exists(resume.file_path):
+                continue
+            path = storage.resolve_path(resume.file_path)
+            agency_seg = _safe_zip_segment(org_name or "agency")
+            job_seg = _safe_zip_segment(job_title or "job")
+            file_seg = _safe_zip_segment(resume.file_name or item.file_name or "resume.pdf")
+            arcname = f"{agency_seg}/{job_seg}/{file_seg}"
+            n = 1
+            while arcname in seen:
+                stem, _, ext = file_seg.rpartition(".")
+                suffix = f"_{n}.{ext}" if ext else f"_{n}"
+                arcname = f"{agency_seg}/{job_seg}/{stem}{suffix}" if ext else f"{agency_seg}/{job_seg}/{file_seg}_{n}"
+                n += 1
+            seen.add(arcname)
+            zf.write(path, arcname)
+            added += 1
+
+    if added == 0:
+        raise ValueError("No resume files available on server")
+
+    if batch_id:
+        filename = f"{_safe_zip_segment(rows[0][3] or 'batch')}_resumes.zip"
+    elif agency_organization_id:
+        filename = f"{_safe_zip_segment(rows[0][4] or 'agency')}_resumes.zip"
+    else:
+        filename = "all_agency_resumes.zip"
+
+    return buf.getvalue(), filename
