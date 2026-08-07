@@ -31,6 +31,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+function appendPageParams(q: URLSearchParams, page?: number, page_size?: number) {
+  if (page != null) q.set('page', String(page));
+  if (page_size != null) q.set('page_size', String(page_size));
+}
+
 export const api = {
   register: (data: {
     email: string;
@@ -59,8 +64,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  oauthAuthorizeUrl: (provider: string, redirectUri: string) =>
-    request<{ authorize_url: string }>(`/auth/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&state=jobs`),
+  oauthAuthorizeUrl: (provider: string, redirectUri: string, state: string) =>
+    request<{ authorize_url: string }>(
+      `/auth/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`,
+    ),
   me: () => request<import('@/types').User>('/auth/me'),
   account: {
     update: (data: { full_name?: string; mobile?: string }) =>
@@ -89,6 +96,8 @@ export const api = {
       max_salary?: number;
       education?: string;
       notice_period?: string;
+      page?: number;
+      page_size?: number;
     }) => {
       const q = new URLSearchParams();
       if (params?.keyword) q.set('keyword', params.keyword);
@@ -102,8 +111,9 @@ export const api = {
       if (params?.max_salary != null) q.set('max_salary', String(params.max_salary));
       if (params?.education) q.set('education', params.education);
       if (params?.notice_period) q.set('notice_period', params.notice_period);
+      appendPageParams(q, params?.page, params?.page_size);
       const qs = q.toString();
-      return request<import('@/types').JobListItem[]>(`/jobs${qs ? `?${qs}` : ''}`);
+      return request<import('@/types').Paginated<import('@/types').JobListItem>>(`/jobs${qs ? `?${qs}` : ''}`);
     },
     recommended: () => request<import('@/types').JobListItem[]>('/jobs/recommended'),
     allLocations: () => request<string[]>('/jobs/locations/all'),
@@ -113,7 +123,8 @@ export const api = {
     },
     filters: () => request<import('@/types').JobFilterMeta>('/jobs/filters'),
     get: (id: string) => request<import('@/types').Job>(`/jobs/${id}`),
-    mine: () => request<import('@/types').Job[]>('/jobs/mine/list'),
+    mine: (page = 1, page_size = 15) =>
+      request<import('@/types').Paginated<import('@/types').Job>>(`/jobs/mine/list?page=${page}&page_size=${page_size}`),
     create: (data: Record<string, unknown>) =>
       request<import('@/types').Job>('/jobs', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, unknown>) =>
@@ -124,7 +135,19 @@ export const api = {
       request<import('@/types').Application>(`/jobs/${id}/apply`, { method: 'POST', body: formData }),
     bulkUpload: (id: string, formData: FormData) =>
       request<import('@/types').BulkUploadBatch>(`/jobs/${id}/bulk-upload`, { method: 'POST', body: formData }),
-    applications: (id: string) => request<import('@/types').Application[]>(`/jobs/${id}/applications`),
+    applications: (
+      id: string,
+      params?: { page?: number; page_size?: number; source?: string; keyword?: string; notice_period?: string; education?: string },
+    ) => {
+      const q = new URLSearchParams();
+      if (params?.source) q.set('source', params.source);
+      if (params?.keyword) q.set('keyword', params.keyword);
+      if (params?.notice_period) q.set('notice_period', params.notice_period);
+      if (params?.education) q.set('education', params.education);
+      appendPageParams(q, params?.page, params?.page_size);
+      const qs = q.toString();
+      return request<import('@/types').Paginated<import('@/types').Application>>(`/jobs/${id}/applications${qs ? `?${qs}` : ''}`);
+    },
   },
   profile: {
     get: () => request<import('@/types').CandidateProfile>('/profile'),
@@ -134,7 +157,8 @@ export const api = {
       request<{ id: string; file_name: string }>('/profile/resume', { method: 'POST', body: formData }),
   },
   applications: {
-    mine: () => request<import('@/types').Application[]>('/applications/mine'),
+    mine: (page = 1, page_size = 15) =>
+      request<import('@/types').Paginated<import('@/types').Application>>(`/applications/mine?page=${page}&page_size=${page_size}`),
     updateStatus: (id: string, status: string) =>
       request<import('@/types').Application>(`/applications/${id}/status`, {
         method: 'PATCH',
@@ -158,6 +182,8 @@ export const api = {
       notice_period?: string;
       min_experience?: number;
       skill?: string;
+      page?: number;
+      page_size?: number;
     }) => {
       const q = new URLSearchParams();
       if (params?.keyword) q.set('keyword', params.keyword);
@@ -168,16 +194,21 @@ export const api = {
       if (params?.notice_period) q.set('notice_period', params.notice_period);
       if (params?.min_experience != null) q.set('min_experience', String(params.min_experience));
       if (params?.skill) q.set('skill', params.skill);
+      appendPageParams(q, params?.page, params?.page_size);
       const qs = q.toString();
-      return request<import('@/types').Application[]>(`/applications/all${qs ? `?${qs}` : ''}`);
+      return request<import('@/types').Paginated<import('@/types').Application>>(`/applications/all${qs ? `?${qs}` : ''}`);
     },
-    agencyUploads: () => request<import('@/types').BulkUploadBatch[]>('/bulk-uploads/all'),
+    agencyUploads: (page = 1, page_size = 10) =>
+      request<import('@/types').Paginated<import('@/types').BulkUploadBatch>>(`/bulk-uploads/all?page=${page}&page_size=${page_size}`),
     downloadAllAgencyResumesUrl: () => '/bulk-uploads/download/all',
     downloadAgencyResumesUrl: (orgId: string) => `/bulk-uploads/download/agency/${orgId}`,
     downloadBatchResumesUrl: (batchId: string) => `/bulk-uploads/download/batch/${batchId}`,
-    users: (role?: string) => {
-      const qs = role ? `?role=${encodeURIComponent(role)}` : '';
-      return request<import('@/types').AdminUser[]>(`/admin/users${qs}`);
+    users: (role?: string, page = 1, page_size = 20) => {
+      const q = new URLSearchParams();
+      if (role) q.set('role', role);
+      q.set('page', String(page));
+      q.set('page_size', String(page_size));
+      return request<import('@/types').Paginated<import('@/types').AdminUser>>(`/admin/users?${q.toString()}`);
     },
     setUserActive: (id: string, is_active: boolean) =>
       request<import('@/types').AdminUser>(`/admin/users/${id}`, {
@@ -186,7 +217,8 @@ export const api = {
       }),
   },
   bulkUploads: {
-    mine: () => request<import('@/types').BulkUploadBatch[]>('/bulk-uploads/mine'),
+    mine: (page = 1, page_size = 10) =>
+      request<import('@/types').Paginated<import('@/types').BulkUploadBatch>>(`/bulk-uploads/mine?page=${page}&page_size=${page_size}`),
     get: (id: string) => request<import('@/types').BulkUploadBatch>(`/bulk-uploads/${id}`),
   },
   dashboard: {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, Loader2 } from 'lucide-react';
+import Pagination from '@/components/Pagination';
 import { api } from '@/lib/api';
 import { downloadBulkZip } from '@/lib/downloadResume';
 import type { BulkUploadBatch } from '@/types';
@@ -37,19 +38,30 @@ function groupByAgency(batches: BulkUploadBatch[]): AgencyGroup[] {
 
 export default function AdminAgencyUploadsPage() {
   const [batches, setBatches] = useState<BulkUploadBatch[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 10;
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
 
   useEffect(() => {
     api.admin
-      .agencyUploads()
-      .then(setBatches)
-      .catch(() => setBatches([]))
+      .agencyUploads(page, pageSize)
+      .then((res) => {
+        setBatches(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
+      .catch(() => {
+        setBatches([]);
+        setTotal(0);
+        setTotalPages(0);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [page]);
 
   const agencyGroups = useMemo(() => groupByAgency(batches), [batches]);
-  const totalSuccess = batches.reduce((sum, b) => sum + b.success_count, 0);
 
   async function handleDownload(key: string, path: string, filename: string) {
     setDownloading(key);
@@ -74,10 +86,10 @@ export default function AdminAgencyUploadsPage() {
             All bulk resume uploads from agency accounts across every job.
           </p>
         </div>
-        {batches.length > 0 && (
+        {total > 0 && (
           <button
             type="button"
-            disabled={downloading !== null || totalSuccess === 0}
+            disabled={downloading !== null}
             onClick={() =>
               handleDownload('all', api.admin.downloadAllAgencyResumesUrl(), 'all_agency_resumes.zip')
             }
@@ -88,14 +100,14 @@ export default function AdminAgencyUploadsPage() {
             ) : (
               <Download className="h-4 w-4" />
             )}
-            Download All ({totalSuccess})
+            Download All
           </button>
         )}
       </div>
 
       {loading && <p className="text-slate-500">Loading uploads…</p>}
 
-      {!loading && batches.length === 0 && (
+      {!loading && total === 0 && (
         <p className="text-slate-500">No agency uploads yet.</p>
       )}
 
@@ -203,6 +215,9 @@ export default function AdminAgencyUploadsPage() {
           </section>
         ))}
       </div>
+      {!loading && totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} className="mt-8" />
+      )}
     </div>
   );
 }

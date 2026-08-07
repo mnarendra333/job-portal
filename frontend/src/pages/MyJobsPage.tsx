@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Pagination from '@/components/Pagination';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import type { Job } from '@/types';
@@ -17,6 +18,10 @@ export default function MyJobsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 15;
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -24,16 +29,22 @@ export default function MyJobsPage() {
   const load = () => {
     setLoading(true);
     setError('');
-    api.jobs.mine()
-      .then(setJobs)
+    api.jobs.mine(page, pageSize)
+      .then((res) => {
+        setJobs(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
       .catch((err) => {
         setJobs([]);
+        setTotal(0);
+        setTotalPages(0);
         setError(err instanceof Error ? err.message : 'Failed to load jobs');
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [page]);
 
   const setStatus = async (id: string, status: string) => {
     setUpdatingId(id);
@@ -101,6 +112,7 @@ export default function MyJobsPage() {
             </div>
           ))}
           {jobs.length === 0 && <p className="text-slate-500">No jobs found.</p>}
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} className="mt-4" />
         </div>
       )}
     </div>

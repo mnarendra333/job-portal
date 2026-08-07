@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import OAuthButtons from '@/components/auth/OAuthButtons';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { encodeOAuthState, oauthRedirectUri } from '@/lib/oauth';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -29,9 +30,11 @@ export default function LoginPage() {
   const oauthStart = async (provider: 'google' | 'linkedin') => {
     setError('');
     try {
-      const redirectUri = `${window.location.origin}/oauth/callback?provider=${provider}`;
-      const { authorize_url } = await api.oauthAuthorizeUrl(provider, redirectUri);
+      const redirectUri = oauthRedirectUri();
+      const state = encodeOAuthState({ provider });
+      const { authorize_url } = await api.oauthAuthorizeUrl(provider, redirectUri, state);
       sessionStorage.setItem('oauth_redirect', redirectUri);
+      sessionStorage.setItem('oauth_state', state);
       window.location.href = authorize_url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'OAuth not configured');

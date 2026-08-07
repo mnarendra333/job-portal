@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Pagination from '@/components/Pagination';
 import { api } from '@/lib/api';
 import { downloadResume, downloadResumes } from '@/lib/downloadResume';
 import type { Application } from '@/types';
@@ -18,6 +19,10 @@ export default function AdminCandidatesPage() {
   const [minExperience, setMinExperience] = useState('');
   const [skill, setSkill] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 25;
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -33,14 +38,22 @@ export default function AdminCandidatesPage() {
       notice_period: noticePeriod || undefined,
       min_experience: minExperience ? parseFloat(minExperience) : undefined,
       skill: skill || undefined,
+      page,
+      page_size: pageSize,
     })
-      .then(setApps)
+      .then((res) => {
+        setApps(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
       .catch((err) => {
         setApps([]);
+        setTotal(0);
+        setTotalPages(0);
         setError(err instanceof Error ? err.message : 'Failed to load candidates');
       })
       .finally(() => setLoading(false));
-  }, [keyword, status, source, location, education, noticePeriod, minExperience, skill]);
+  }, [keyword, status, source, location, education, noticePeriod, minExperience, skill, page, pageSize]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -76,7 +89,10 @@ export default function AdminCandidatesPage() {
     }
   };
 
-  const filteredCount = useMemo(() => apps.length, [apps]);
+  const applyFilters = () => {
+    if (page === 1) load();
+    else setPage(1);
+  };
 
   return (
     <div>
@@ -116,12 +132,12 @@ export default function AdminCandidatesPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <button type="button" onClick={load} className="naukri-btn-primary text-sm py-1.5 px-4">Apply filters</button>
+        <button type="button" onClick={applyFilters} className="naukri-btn-primary text-sm py-1.5 px-4">Apply filters</button>
         <button type="button" disabled={selected.size === 0} onClick={() => bulkStatus('shortlisted')} className="text-sm border rounded-lg px-3 py-1.5 disabled:opacity-40">Shortlist selected</button>
         <button type="button" disabled={selected.size === 0} onClick={() => bulkStatus('rejected')} className="text-sm border rounded-lg px-3 py-1.5 disabled:opacity-40">Reject selected</button>
         <button type="button" disabled={selected.size === 0} onClick={() => bulkStatus('under_review')} className="text-sm border rounded-lg px-3 py-1.5 disabled:opacity-40">Move to review</button>
         <button type="button" disabled={selected.size === 0} onClick={bulkDownload} className="text-sm border rounded-lg px-3 py-1.5 disabled:opacity-40">Download selected</button>
-        <span className="text-sm text-naukri-muted self-center ml-auto">{filteredCount} candidates · {selected.size} selected</span>
+        <span className="text-sm text-naukri-muted self-center ml-auto">{total} candidates · {selected.size} selected</span>
       </div>
 
       <div className="card overflow-hidden">
@@ -197,6 +213,11 @@ export default function AdminCandidatesPage() {
           </table>
         )}
         {!loading && apps.length === 0 && <p className="p-6 text-slate-500">No candidates match your filters.</p>}
+        {!loading && (
+          <div className="p-4 border-t">
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
+          </div>
+        )}
       </div>
     </div>
   );

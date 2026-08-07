@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.pagination import PaginatedResponse, build_paginated, normalize_pagination
 from app.core.permissions import ROLE_PERMISSIONS
 from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password
 from app.models import (
@@ -166,6 +167,62 @@ def _job_visible_to_user(job: Job, user: User | None) -> bool:
     if user.role == UserRole.job_seeker:
         return job.visible_to_students
     return True
+
+
+def _apply_published_job_filters(
+    q,
+    *,
+    keyword: str | None,
+    location: str | None,
+    employment_type: str | None,
+    skill: str | None,
+    skills: list[str] | None,
+    min_experience: int | None,
+    max_experience: int | None,
+    min_salary: float | None,
+    max_salary: float | None,
+    education: str | None,
+    notice_period: str | None,
+    user: User | None,
+):
+    vis = _visibility_filter(user)
+    if vis is not None:
+        q = q.where(vis)
+    if keyword:
+        kw = keyword.strip()
+        skill_match = (
+            select(JobSkill.job_id)
+            .join(Skill, Skill.id == JobSkill.skill_id)
+            .where(Skill.name.ilike(f"%{kw}%"))
+        )
+        q = q.where(
+            Job.title.ilike(f"%{kw}%")
+            | Job.description.ilike(f"%{kw}%")
+            | Job.id.in_(skill_match)
+        )
+    if location:
+        q = q.where(Job.location.ilike(f"%{location}%"))
+    if employment_type:
+        q = q.where(Job.employment_type == employment_type)
+    if min_experience is not None:
+        q = q.where((Job.experience_max.is_(None)) | (Job.experience_max >= min_experience))
+    if max_experience is not None:
+        q = q.where((Job.experience_min.is_(None)) | (Job.experience_min <= max_experience))
+    if min_salary is not None:
+        q = q.where((Job.salary_max.is_(None)) | (Job.salary_max >= min_salary))
+    if max_salary is not None:
+        q = q.where((Job.salary_min.is_(None)) | (Job.salary_min <= max_salary))
+    if education:
+        q = q.where(Job.education_requirement.ilike(f"%{education}%"))
+    if notice_period:
+        q = q.where(Job.notice_period_max.ilike(f"%{notice_period}%"))
+    skill_filters = [s.strip() for s in (skills or []) if s.strip()]
+    if skill and skill not in skill_filters:
+        skill_filters.append(skill.strip())
+    if skill_filters:
+        q = q.join(JobSkill, JobSkill.job_id == Job.id).join(Skill, Skill.id == JobSkill.skill_id)
+        q = q.where(or_(*[Skill.name.ilike(f"%{s}%") for s in skill_filters]))
+    return q
 
 
 def _build_job_response(
@@ -479,50 +536,37 @@ async def list_published_jobs(
     education: str | None = None,
     notice_period: str | None = None,
     user: User | None = None,
-) -> list[JobListItem]:
+    page: int = 1,
+    page_size: int = 12,
+) -> PaginatedResponse[JobListItem]:
+    page, page_size, offset = normalize_pagination(page, page_size)
+
     q = select(Job).where(Job.status == JobStatus.published)
-    vis = _visibility_filter(user)
-    if vis is not None:
-        q = q.where(vis)
-    if keyword:
-        kw = keyword.strip()
-        skill_match = (
-            select(JobSkill.job_id)
-            .join(Skill, Skill.id == JobSkill.skill_id)
-            .where(Skill.name.ilike(f"%{kw}%"))
-        )
-        q = q.where(
-            Job.title.ilike(f"%{kw}%")
-            | Job.description.ilike(f"%{kw}%")
-            | Job.id.in_(skill_match)
-        )
-    if location:
-        q = q.where(Job.location.ilike(f"%{location}%"))
-    if employment_type:
-        q = q.where(Job.employment_type == employment_type)
-    if min_experience is not None:
-        q = q.where((Job.experience_max.is_(None)) | (Job.experience_max >= min_experience))
-    if max_experience is not None:
-        q = q.where((Job.experience_min.is_(None)) | (Job.experience_min <= max_experience))
-    if min_salary is not None:
-        q = q.where((Job.salary_max.is_(None)) | (Job.salary_max >= min_salary))
-    if max_salary is not None:
-        q = q.where((Job.salary_min.is_(None)) | (Job.salary_min <= max_salary))
-    if education:
-        q = q.where(Job.education_requirement.ilike(f"%{education}%"))
-    if notice_period:
-        q = q.where(Job.notice_period_max.ilike(f"%{notice_period}%"))
-    skill_filters = [s.strip() for s in (skills or []) if s.strip()]
-    if skill and skill not in skill_filters:
-        skill_filters.append(skill.strip())
-    if skill_filters:
-        q = q.join(JobSkill, JobSkill.job_id == Job.id).join(Skill, Skill.id == JobSkill.skill_id)
-        q = q.where(or_(*[Skill.name.ilike(f"%{s}%") for s in skill_filters]))
-    q = q.order_by(Job.published_at.desc().nullslast())
+    q = _apply_published_job_filters(
+        q,
+        keyword=keyword,
+        location=location,
+        employment_type=employment_type,
+        skill=skill,
+        skills=skills,
+        min_experience=min_experience,
+        max_experience=max_experience,
+        min_salary=min_salary,
+        max_salary=max_salary,
+        education=education,
+        notice_period=notice_period,
+        user=user,
+    )
+
+    count_stmt = select(func.count()).select_from(q.with_only_columns(Job.id).distinct().subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    q = q.order_by(Job.published_at.desc().nullslast()).offset(offset).limit(page_size)
     result = await db.execute(q)
     jobs = result.scalars().unique().all()
     if not jobs:
-        return []
+        return build_paginated([], total, page, page_size)
+
     job_ids = [j.id for j in jobs]
     org_ids = list({j.organization_id for j in jobs})
     skills_map = await _bulk_job_skills(db, job_ids)
@@ -555,7 +599,7 @@ async def list_published_jobs(
             education_requirement=job.education_requirement,
             notice_period_max=job.notice_period_max,
         ))
-    return items
+    return build_paginated(items, total, page, page_size)
 
 
 NOTICE_PERIOD_DAYS = {
@@ -732,24 +776,32 @@ async def list_all_job_locations(db: AsyncSession) -> list[str]:
     return combined
 
 
-async def list_my_jobs(db: AsyncSession, user: User) -> list[JobResponse]:
+async def list_my_jobs(
+    db: AsyncSession, user: User, page: int = 1, page_size: int = 15,
+) -> PaginatedResponse[JobResponse]:
+    page, page_size, offset = normalize_pagination(page, page_size)
+
     if user.role == UserRole.admin:
-        result = await db.execute(select(Job).order_by(Job.created_at.desc()))
+        base = select(Job)
+        count_q = select(func.count()).select_from(Job)
     elif not user.organization_id:
-        return []
+        return build_paginated([], 0, page, page_size)
     else:
-        result = await db.execute(
-            select(Job).where(Job.organization_id == user.organization_id).order_by(Job.created_at.desc())
-        )
+        base = select(Job).where(Job.organization_id == user.organization_id)
+        count_q = select(func.count()).select_from(Job).where(Job.organization_id == user.organization_id)
+
+    total = (await db.execute(count_q)).scalar() or 0
+    result = await db.execute(base.order_by(Job.created_at.desc()).offset(offset).limit(page_size))
     jobs = result.scalars().all()
     if not jobs:
-        return []
+        return build_paginated([], total, page, page_size)
+
     job_ids = [j.id for j in jobs]
     org_ids = list({j.organization_id for j in jobs})
     skills_map = await _bulk_job_skills(db, job_ids)
     org_map = await _bulk_org_names(db, org_ids)
     counts_map = await _bulk_application_counts(db, job_ids)
-    return [
+    items = [
         _build_job_response(
             job,
             skills_map.get(job.id, []),
@@ -758,6 +810,7 @@ async def list_my_jobs(db: AsyncSession, user: User) -> list[JobResponse]:
         )
         for job in jobs
     ]
+    return build_paginated(items, total, page, page_size)
 
 
 async def get_profile(db: AsyncSession, user: User) -> CandidateProfileResponse:
@@ -1009,12 +1062,16 @@ async def get_bulk_batch(db: AsyncSession, batch_id: UUID, user: User) -> BulkUp
     )
 
 
-async def list_my_bulk_batches(db: AsyncSession, user: User) -> list[BulkUploadBatchResponse]:
-    result = await db.execute(
-        select(BulkUploadBatch).where(BulkUploadBatch.uploaded_by == user.id).order_by(BulkUploadBatch.created_at.desc())
-    )
+async def list_my_bulk_batches(
+    db: AsyncSession, user: User, page: int = 1, page_size: int = 10,
+) -> PaginatedResponse[BulkUploadBatchResponse]:
+    page, page_size, offset = normalize_pagination(page, page_size)
+    base = select(BulkUploadBatch).where(BulkUploadBatch.uploaded_by == user.id)
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    result = await db.execute(base.order_by(BulkUploadBatch.created_at.desc()).offset(offset).limit(page_size))
     batches = result.scalars().all()
-    return [await get_bulk_batch(db, b.id, user) for b in batches]
+    items = [await get_bulk_batch(db, b.id, user) for b in batches]
+    return build_paginated(items, total, page, page_size)
 
 
 async def _applications_to_responses(db: AsyncSession, apps: list[JobApplication]) -> list[ApplicationResponse]:
@@ -1166,21 +1223,65 @@ async def _application_to_response(db: AsyncSession, app: JobApplication) -> App
     )
 
 
-async def list_job_applications(db: AsyncSession, user: User, job_id: UUID) -> list[ApplicationResponse]:
+async def list_job_applications(
+    db: AsyncSession,
+    user: User,
+    job_id: UUID,
+    page: int = 1,
+    page_size: int = 20,
+    source: str | None = None,
+    keyword: str | None = None,
+    notice_period: str | None = None,
+    education: str | None = None,
+) -> PaginatedResponse[ApplicationResponse]:
+    page, page_size, offset = normalize_pagination(page, page_size)
     job = await _get_owned_job(db, user, job_id)
+
+    q = select(JobApplication).where(JobApplication.job_id == job.id)
+    if source:
+        try:
+            q = q.where(JobApplication.application_source == ApplicationSource(source))
+        except ValueError:
+            raise ValueError("Invalid source filter")
+    if keyword or education or notice_period:
+        q = q.outerjoin(Resume, Resume.id == JobApplication.resume_id)
+        if keyword:
+            kw = f"%{keyword.strip()}%"
+            q = q.where(
+                or_(
+                    Resume.candidate_name.ilike(kw),
+                    Resume.candidate_email.ilike(kw),
+                    Resume.file_name.ilike(kw),
+                )
+            )
+    if education or notice_period:
+        q = q.outerjoin(CandidateProfile, CandidateProfile.user_id == JobApplication.applicant_user_id)
+        if education:
+            q = q.where(CandidateProfile.education.ilike(f"%{education}%"))
+        if notice_period:
+            q = q.where(CandidateProfile.notice_period == notice_period)
+
+    count_stmt = select(func.count()).select_from(q.with_only_columns(JobApplication.id).distinct().subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
     result = await db.execute(
-        select(JobApplication).where(JobApplication.job_id == job.id).order_by(JobApplication.created_at.desc())
+        q.order_by(JobApplication.created_at.desc()).offset(offset).limit(page_size)
     )
-    apps = result.scalars().all()
-    return await _applications_to_responses(db, apps)
+    apps = result.scalars().unique().all()
+    items = await _applications_to_responses(db, apps)
+    return build_paginated(items, total, page, page_size)
 
 
-async def list_my_applications(db: AsyncSession, user: User) -> list[ApplicationResponse]:
-    result = await db.execute(
-        select(JobApplication).where(JobApplication.applicant_user_id == user.id).order_by(JobApplication.created_at.desc())
-    )
+async def list_my_applications(
+    db: AsyncSession, user: User, page: int = 1, page_size: int = 15,
+) -> PaginatedResponse[ApplicationResponse]:
+    page, page_size, offset = normalize_pagination(page, page_size)
+    base = select(JobApplication).where(JobApplication.applicant_user_id == user.id)
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+    result = await db.execute(base.order_by(JobApplication.created_at.desc()).offset(offset).limit(page_size))
     apps = result.scalars().all()
-    return await _applications_to_responses(db, apps)
+    items = await _applications_to_responses(db, apps)
+    return build_paginated(items, total, page, page_size)
 
 
 async def update_application_status(db: AsyncSession, user: User, app_id: UUID, status: str) -> ApplicationResponse:
@@ -1226,9 +1327,13 @@ async def list_all_applications(
     notice_period: str | None = None,
     min_experience: float | None = None,
     skill: str | None = None,
-) -> list[ApplicationResponse]:
+    page: int = 1,
+    page_size: int = 25,
+) -> PaginatedResponse[ApplicationResponse]:
     if user.role != UserRole.admin:
         raise ValueError("Admin access required")
+
+    page, page_size, offset = normalize_pagination(page, page_size)
 
     q = select(JobApplication).join(Job, Job.id == JobApplication.job_id)
     if status:
@@ -1246,38 +1351,35 @@ async def list_all_applications(
     if skill:
         q = q.join(JobSkill, JobSkill.job_id == Job.id).join(Skill, Skill.id == JobSkill.skill_id)
         q = q.where(Skill.name.ilike(f"%{skill}%"))
-
-    q = q.order_by(JobApplication.created_at.desc())
-    result = await db.execute(q)
-    apps = result.scalars().unique().all()
-    if not apps:
-        return []
-
-    responses = await _applications_to_responses(db, apps)
-    out: list[ApplicationResponse] = []
-    for resp in responses:
-        if education and (resp.applicant_education or "").lower() != education.lower():
-            continue
-        if notice_period and (resp.applicant_notice_period or "") != notice_period:
-            continue
+    if keyword:
+        q = q.outerjoin(Resume, Resume.id == JobApplication.resume_id)
+        kw = f"%{keyword.strip()}%"
+        q = q.where(
+            or_(
+                Resume.candidate_name.ilike(kw),
+                Resume.candidate_email.ilike(kw),
+                Resume.file_name.ilike(kw),
+                Job.title.ilike(kw),
+            )
+        )
+    if education or notice_period or min_experience is not None:
+        q = q.outerjoin(CandidateProfile, CandidateProfile.user_id == JobApplication.applicant_user_id)
+        if education:
+            q = q.where(CandidateProfile.education.ilike(f"%{education}%"))
+        if notice_period:
+            q = q.where(CandidateProfile.notice_period == notice_period)
         if min_experience is not None:
-            exp = resp.applicant_experience_years
-            if exp is None or exp < min_experience:
-                continue
-        if keyword:
-            kw_lower = keyword.lower()
-            hay = " ".join([
-                resp.applicant_name or "",
-                resp.applicant_email or "",
-                resp.job_title or "",
-                resp.resume_file_name or "",
-                resp.organization_name or "",
-                resp.agency_name or "",
-            ]).lower()
-            if kw_lower not in hay:
-                continue
-        out.append(resp)
-    return out
+            q = q.where(CandidateProfile.total_experience_years >= min_experience)
+
+    count_stmt = select(func.count()).select_from(q.with_only_columns(JobApplication.id).distinct().subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    result = await db.execute(
+        q.order_by(JobApplication.created_at.desc()).offset(offset).limit(page_size)
+    )
+    apps = result.scalars().unique().all()
+    items = await _applications_to_responses(db, apps)
+    return build_paginated(items, total, page, page_size)
 
 
 async def bulk_update_application_status(
@@ -1302,12 +1404,19 @@ async def bulk_update_application_status(
     return [await _application_to_response(db, a) for a in updated]
 
 
-async def list_all_bulk_batches(db: AsyncSession, user: User) -> list[BulkUploadBatchResponse]:
+async def list_all_bulk_batches(
+    db: AsyncSession, user: User, page: int = 1, page_size: int = 10,
+) -> PaginatedResponse[BulkUploadBatchResponse]:
     if user.role != UserRole.admin:
         raise ValueError("Admin access required")
-    result = await db.execute(select(BulkUploadBatch).order_by(BulkUploadBatch.created_at.desc()))
+    page, page_size, offset = normalize_pagination(page, page_size)
+    total = (await db.execute(select(func.count()).select_from(BulkUploadBatch))).scalar() or 0
+    result = await db.execute(
+        select(BulkUploadBatch).order_by(BulkUploadBatch.created_at.desc()).offset(offset).limit(page_size)
+    )
     batches = result.scalars().all()
-    return [await get_bulk_batch(db, b.id, user) for b in batches]
+    items = [await get_bulk_batch(db, b.id, user) for b in batches]
+    return build_paginated(items, total, page, page_size)
 
 
 def _safe_zip_segment(name: str, fallback: str = "file") -> str:

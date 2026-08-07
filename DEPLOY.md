@@ -157,13 +157,15 @@ Update redirect URIs in provider consoles to use your **Vercel URL**:
 
 **Google Cloud Console** → OAuth client → Authorized redirect URIs:
 ```
-https://job-portal-abc.vercel.app/oauth/callback?provider=google
+https://job-portal-abc.vercel.app/oauth/callback
 ```
 
 **LinkedIn Developer Portal** → Redirect URLs:
 ```
-https://job-portal-abc.vercel.app/oauth/callback?provider=linkedin
+https://job-portal-abc.vercel.app/oauth/callback
 ```
+
+For local dev, also add `http://localhost:5175/oauth/callback` to both (exact match, no query string).
 
 Also add **Authorized JavaScript origins** (Google):
 ```
@@ -193,7 +195,7 @@ Do this **only after** the free URLs work end-to-end.
 4. Update env vars and redeploy:
    - Render: `CORS_ORIGINS=https://app.yourdomain.com`
    - Vercel: `VITE_API_URL=https://api.yourdomain.com/api/v1` → **Redeploy** frontend (build-time var).
-5. Update OAuth redirect URIs to use `https://app.yourdomain.com/oauth/callback?provider=...`
+5. Update OAuth redirect URIs to use `https://app.yourdomain.com/oauth/callback` (no query string)
 
 ### GoDaddy apex domain (`yourdomain.com`)
 

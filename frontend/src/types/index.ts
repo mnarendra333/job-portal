@@ -1,5 +1,13 @@
 export type UserRole = 'admin' | 'recruiter' | 'agency' | 'job_seeker';
 
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface User {
   id: string;
   email: string;

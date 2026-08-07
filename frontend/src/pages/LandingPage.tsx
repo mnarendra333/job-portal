@@ -1,12 +1,20 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import JobBrowseSection from '@/components/jobs/JobBrowseSection';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LandingPage() {
   const { user } = useAuth();
 
+  useEffect(() => {
+    if (window.location.hash === '#jobs') {
+      document.getElementById('jobs')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+
   return (
     <div>
-      <section className="app-gradient text-white py-20 px-4">
+      <section className="app-gradient text-white py-14 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Job Distribution + Resume Collection</h1>
           <p className="text-lg text-white/90 mb-8">
@@ -15,22 +23,19 @@ export default function LandingPage() {
           <div className="flex gap-4 justify-center flex-wrap">
             {user ? (
               <>
-                <Link to="/jobs" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
+                <a href="#jobs" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
                   Browse Jobs
-                </Link>
+                </a>
                 <Link to="/app" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
                   Go to Dashboard
                 </Link>
               </>
             ) : (
               <>
-                <Link to="/login" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
-                  Sign in to Browse Jobs
-                </Link>
-                <Link to="/register" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
+                <Link to="/register" className="px-6 py-3 bg-white text-teal-800 rounded-lg font-semibold hover:bg-slate-100">
                   Get Started
                 </Link>
-                <Link to="/login" className="px-6 py-3 text-white/90 underline">
+                <Link to="/login" className="px-6 py-3 border-2 border-white rounded-lg font-semibold hover:bg-white/10">
                   Sign in
                 </Link>
               </>
@@ -44,7 +49,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-4 py-16">
+      <JobBrowseSection
+        title="Open positions"
+        subtitle="Browse all published jobs — no sign-in required. Register or sign in to apply."
+      />
+
+      <section className="max-w-6xl mx-auto px-4 py-16 border-t border-naukri-border">
         <h2 className="text-2xl font-bold mb-8 text-center text-naukri-text">How it works</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {[
@@ -59,13 +69,6 @@ export default function LandingPage() {
           ))}
         </div>
       </section>
-
-      {!user && (
-        <section className="max-w-6xl mx-auto px-4 pb-16 text-center">
-          <p className="text-naukri-muted mb-4">Job listings are available after you sign in.</p>
-          <Link to="/login" className="text-sm font-medium text-naukri-blue hover:underline">Sign in to view openings →</Link>
-        </section>
-      )}
     </div>
   );
 }

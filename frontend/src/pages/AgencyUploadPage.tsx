@@ -11,7 +11,7 @@ export default function AgencyUploadPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.jobs.list().then(setJobs).catch(() => setJobs([]));
+    api.jobs.list({ page: 1, page_size: 100 }).then((res) => setJobs(res.items)).catch(() => setJobs([]));
   }, []);
 
   const submit = async () => {

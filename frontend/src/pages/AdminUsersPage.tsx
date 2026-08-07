@@ -1,24 +1,33 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import Pagination from '@/components/Pagination';
 import type { AdminUser } from '@/types';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roleFilter, setRoleFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 20;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const load = () => {
     setLoading(true);
-    api.admin.users(roleFilter || undefined)
-      .then(setUsers)
+    api.admin.users(roleFilter || undefined, page, pageSize)
+      .then((res) => {
+        setUsers(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load users'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     load();
-  }, [roleFilter]);
+  }, [roleFilter, page]);
 
   const toggleActive = async (u: AdminUser) => {
     setError('');
@@ -38,7 +47,7 @@ export default function AdminUsersPage() {
         <select
           className="border rounded-lg px-3 py-2 text-sm"
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
+          onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
         >
           <option value="">All roles</option>
           <option value="job_seeker">Job seekers</option>
@@ -89,6 +98,9 @@ export default function AdminUsersPage() {
               ))}
             </tbody>
           </table>
+          <div className="p-4 border-t">
+            <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
+          </div>
         </div>
       )}
     </div>

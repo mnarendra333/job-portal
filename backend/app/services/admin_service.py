@@ -1,8 +1,9 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.pagination import PaginatedResponse, build_paginated, normalize_pagination
 from app.models import Organization, User, UserRole
 from app.schemas import AdminUserResponse
 
@@ -14,14 +15,19 @@ async def _org_name(db: AsyncSession, org_id: UUID | None) -> str | None:
     return r.scalar_one_or_none()
 
 
-async def list_users(db: AsyncSession, role: str | None = None) -> list[AdminUserResponse]:
-    q = select(User).order_by(User.created_at.desc())
+async def list_users(
+    db: AsyncSession, role: str | None = None, page: int = 1, page_size: int = 20,
+) -> PaginatedResponse[AdminUserResponse]:
+    page, page_size, offset = normalize_pagination(page, page_size)
+    q = select(User)
     if role:
         try:
             q = q.where(User.role == UserRole(role))
         except ValueError:
             raise ValueError("Invalid role filter")
-    result = await db.execute(q)
+    count_stmt = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+    result = await db.execute(q.order_by(User.created_at.desc()).offset(offset).limit(page_size))
     users = result.scalars().all()
     out = []
     for u in users:
@@ -35,7 +41,7 @@ async def list_users(db: AsyncSession, role: str | None = None) -> list[AdminUse
             created_at=u.created_at,
             last_login_at=u.last_login_at,
         ))
-    return out
+    return build_paginated(out, total, page, page_size)
 
 
 async def set_user_active(db: AsyncSession, actor: User, user_id: UUID, is_active: bool) -> AdminUserResponse:

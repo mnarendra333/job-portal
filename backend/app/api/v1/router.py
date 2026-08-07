@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, get_optional_user, require_permission
+from app.core.pagination import PaginatedResponse
 from app.core.permissions import Permission
 from app.db.session import get_db
 from app.models import User
@@ -139,10 +140,10 @@ async def oauth_linkedin(body: OAuthRequest, db: AsyncSession = Depends(get_db))
         raise _handle_value_error(e)
 
 
-# --- Jobs (authenticated) ---
+# --- Jobs (public browse + authenticated management) ---
 @router.get("/jobs/locations/all", response_model=list[str])
 async def all_job_locations(
-    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     return await job_service.list_all_job_locations(db)
@@ -151,7 +152,7 @@ async def all_job_locations(
 @router.get("/jobs/locations", response_model=list[str])
 async def job_locations(
     q: str | None = None,
-    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     return await job_service.list_job_locations(db, q)
@@ -159,14 +160,14 @@ async def job_locations(
 
 @router.get("/jobs/filters", response_model=JobFilterMeta)
 async def job_filters(
-    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     data = await job_service.get_job_filter_meta(db)
     return JobFilterMeta(**data)
 
 
-@router.get("/jobs", response_model=list[JobListItem])
+@router.get("/jobs", response_model=PaginatedResponse[JobListItem])
 async def list_jobs(
     keyword: str | None = None,
     location: str | None = None,
@@ -179,7 +180,9 @@ async def list_jobs(
     max_salary: float | None = None,
     education: str | None = None,
     notice_period: str | None = None,
-    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    page: int = 1,
+    page_size: int = 12,
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     skill_list = [s.strip() for s in skills.split(",") if s.strip()] if skills else None
@@ -197,6 +200,8 @@ async def list_jobs(
         education,
         notice_period,
         user=user,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -211,18 +216,20 @@ async def recommended_jobs(
         raise _handle_value_error(e)
 
 
-@router.get("/jobs/mine/list", response_model=list[JobResponse])
+@router.get("/jobs/mine/list", response_model=PaginatedResponse[JobResponse])
 async def my_jobs(
+    page: int = 1,
+    page_size: int = 15,
     user: User = Depends(require_permission(Permission.JOBS_READ)),
     db: AsyncSession = Depends(get_db),
 ):
-    return await job_service.list_my_jobs(db, user)
+    return await job_service.list_my_jobs(db, user, page=page, page_size=page_size)
 
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: UUID,
-    user: User = Depends(require_permission(Permission.JOBS_READ)),
+    user: User | None = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
     try:
@@ -317,7 +324,7 @@ async def apply_to_job(
         raise _handle_value_error(e)
 
 
-@router.get("/applications/all", response_model=list[ApplicationResponse])
+@router.get("/applications/all", response_model=PaginatedResponse[ApplicationResponse])
 async def all_applications(
     keyword: str | None = None,
     status: str | None = None,
@@ -327,33 +334,47 @@ async def all_applications(
     notice_period: str | None = None,
     min_experience: float | None = None,
     skill: str | None = None,
+    page: int = 1,
+    page_size: int = 25,
     user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     try:
         return await job_service.list_all_applications(
             db, user, keyword, status, source, location, education, notice_period, min_experience, skill,
+            page=page, page_size=page_size,
         )
     except ValueError as e:
         raise _handle_value_error(e)
 
 
-@router.get("/applications/mine", response_model=list[ApplicationResponse])
+@router.get("/applications/mine", response_model=PaginatedResponse[ApplicationResponse])
 async def my_applications(
+    page: int = 1,
+    page_size: int = 15,
     user: User = Depends(require_permission(Permission.APPLICATIONS_READ)),
     db: AsyncSession = Depends(get_db),
 ):
-    return await job_service.list_my_applications(db, user)
+    return await job_service.list_my_applications(db, user, page=page, page_size=page_size)
 
 
-@router.get("/jobs/{job_id}/applications", response_model=list[ApplicationResponse])
+@router.get("/jobs/{job_id}/applications", response_model=PaginatedResponse[ApplicationResponse])
 async def job_applications(
     job_id: UUID,
+    page: int = 1,
+    page_size: int = 20,
+    source: str | None = None,
+    keyword: str | None = None,
+    notice_period: str | None = None,
+    education: str | None = None,
     user: User = Depends(require_permission(Permission.APPLICATIONS_MANAGE)),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await job_service.list_job_applications(db, user, job_id)
+        return await job_service.list_job_applications(
+            db, user, job_id, page=page, page_size=page_size,
+            source=source, keyword=keyword, notice_period=notice_period, education=education,
+        )
     except ValueError as e:
         raise _handle_value_error(e)
 
@@ -415,13 +436,15 @@ async def bulk_upload(
         raise _handle_value_error(e)
 
 
-@router.get("/bulk-uploads/all", response_model=list[BulkUploadBatchResponse])
+@router.get("/bulk-uploads/all", response_model=PaginatedResponse[BulkUploadBatchResponse])
 async def all_bulk_uploads(
+    page: int = 1,
+    page_size: int = 10,
     user: User = Depends(require_permission(Permission.DASHBOARD_ADMIN)),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await job_service.list_all_bulk_batches(db, user)
+        return await job_service.list_all_bulk_batches(db, user, page=page, page_size=page_size)
     except ValueError as e:
         raise _handle_value_error(e)
 
@@ -478,12 +501,14 @@ async def download_batch_resumes(
         raise _handle_value_error(e)
 
 
-@router.get("/bulk-uploads/mine", response_model=list[BulkUploadBatchResponse])
+@router.get("/bulk-uploads/mine", response_model=PaginatedResponse[BulkUploadBatchResponse])
 async def my_bulk_uploads(
+    page: int = 1,
+    page_size: int = 10,
     user: User = Depends(require_permission(Permission.BULK_UPLOAD)),
     db: AsyncSession = Depends(get_db),
 ):
-    return await job_service.list_my_bulk_batches(db, user)
+    return await job_service.list_my_bulk_batches(db, user, page=page, page_size=page_size)
 
 
 @router.get("/bulk-uploads/{batch_id}", response_model=BulkUploadBatchResponse)
@@ -535,14 +560,16 @@ async def agency_dashboard(
 
 
 # --- Admin user management ---
-@router.get("/admin/users", response_model=list[AdminUserResponse])
+@router.get("/admin/users", response_model=PaginatedResponse[AdminUserResponse])
 async def admin_list_users(
     role: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
     user: User = Depends(require_permission(Permission.USERS_READ)),
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        return await admin_service.list_users(db, role)
+        return await admin_service.list_users(db, role, page=page, page_size=page_size)
     except ValueError as e:
         raise _handle_value_error(e)
 

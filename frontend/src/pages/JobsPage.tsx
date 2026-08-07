@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import JobCard from '@/components/jobs/JobCard';
 import JobFiltersSidebar, { type JobFilters } from '@/components/jobs/JobFiltersSidebar';
 import LocationAutocomplete from '@/components/jobs/LocationAutocomplete';
+import Pagination from '@/components/Pagination';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { withFilterDefaults } from '@/lib/jobFilterDefaults';
@@ -66,6 +67,10 @@ export default function JobsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 12;
   const [keyword, setKeyword] = useState('');
   const [location, setLocation] = useState('');
   const [sidebarFilters, setSidebarFilters] = useState<JobFilters>(EMPTY_FILTERS);
@@ -85,14 +90,24 @@ export default function JobsPage() {
 
   const isSeeker = user?.role === 'job_seeker';
   const searching = hasActiveSearch(keyword, location, sidebarFilters);
+  const useRecommended = isSeeker && tab === 'profile' && !searching;
 
   const load = useCallback(() => {
     setLoading(true);
     const useRecommended = isSeeker && tab === 'profile' && !searching;
     if (useRecommended) {
       api.jobs.recommended()
-        .then(setJobs)
-        .catch(() => setJobs([]))
+        .then((items) => {
+          setJobs(items);
+          setTotal(items.length);
+          setTotalPages(1);
+          setPage(1);
+        })
+        .catch(() => {
+          setJobs([]);
+          setTotal(0);
+          setTotalPages(0);
+        })
         .finally(() => setLoading(false));
       return;
     }
@@ -109,10 +124,21 @@ export default function JobsPage() {
       max_salary: sidebarFilters.maxSalary ?? undefined,
       education: sidebarFilters.education || undefined,
       notice_period: sidebarFilters.noticePeriod || undefined,
+      page,
+      page_size: pageSize,
     })
-      .then(setJobs)
+      .then((res) => {
+        setJobs(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
+      .catch(() => {
+        setJobs([]);
+        setTotal(0);
+        setTotalPages(0);
+      })
       .finally(() => setLoading(false));
-  }, [keyword, location, sidebarFilters, isSeeker, tab, searching]);
+  }, [keyword, location, sidebarFilters, isSeeker, tab, searching, page, pageSize]);
 
   useEffect(() => {
     load();
@@ -197,6 +223,13 @@ export default function JobsPage() {
     setSidebarFilters(EMPTY_FILTERS);
     setKeyword('');
     setLocation('');
+    setPage(1);
+  };
+
+  const applySearch = () => {
+    syncSidebarFromSearch();
+    if (page === 1) load();
+    else setPage(1);
   };
 
   const syncSidebarFromSearch = () => {
@@ -240,27 +273,18 @@ export default function JobsPage() {
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              syncSidebarFromSearch();
-              load();
-            }
+            if (e.key === 'Enter') applySearch();
           }}
         />
         <LocationAutocomplete
           value={location}
           onChange={setLocation}
-          onSelect={() => {
-            syncSidebarFromSearch();
-            load();
-          }}
+          onSelect={() => applySearch()}
           className="flex-1 min-w-[160px]"
         />
         <button
           type="button"
-          onClick={() => {
-            syncSidebarFromSearch();
-            load();
-          }}
+          onClick={applySearch}
           className="naukri-btn-primary shrink-0"
         >
           Search
@@ -275,7 +299,8 @@ export default function JobsPage() {
             onChange={setSidebarFilters}
             onApply={() => {
               syncSidebarFromSearch();
-              load();
+              if (page === 1) load();
+              else setPage(1);
             }}
             onClear={clearFilters}
           />
@@ -283,8 +308,8 @@ export default function JobsPage() {
 
         <div className="flex-1 min-w-0 order-1 xl:order-2">
           <div className="flex gap-6 border-b border-naukri-border mb-5 overflow-x-auto">
-            <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'profile' ? 'naukri-tab-active' : ''}`} onClick={() => setTab('profile')}>
-              {primaryTabLabel} ({searching ? tabJobs.length : visibleJobs.length})
+            <button type="button" className={`naukri-tab whitespace-nowrap ${tab === 'profile' ? 'naukri-tab-active' : ''}`} onClick={() => { setTab('profile'); setPage(1); }}>
+              {primaryTabLabel} ({searching || !isSeeker ? total : visibleJobs.length})
             </button>
             {!searching && (
               <>
@@ -316,6 +341,16 @@ export default function JobsPage() {
                   onSave={handleSave}
                 />
               ))}
+              {!useRecommended && (
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  total={total}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  className="pt-2"
+                />
+              )}
             </div>
           )}
         </div>

@@ -3,17 +3,19 @@ import { Briefcase, LayoutDashboard, LogIn, UserPlus } from 'lucide-react';
 import UserMenuDropdown from '@/components/UserMenuDropdown';
 import { useAuth } from '@/contexts/AuthContext';
 
-function NavLinkItem({ to, children, highlight }: { to: string; children: React.ReactNode; highlight?: boolean }) {
-  if (highlight) {
-    return (
-      <Link
-        to={to}
-        className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm hover:from-teal-700 hover:to-emerald-700 transition-all"
-      >
-        {children}
-      </Link>
-    );
-  }
+function FindJobsLink() {
+  return (
+    <a
+      href="/#jobs"
+      className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-sm hover:from-teal-700 hover:to-emerald-700 transition-all"
+    >
+      <Briefcase className="w-4 h-4" strokeWidth={2.25} />
+      Find Jobs
+    </a>
+  );
+}
+
+function NavLinkItem({ to, children }: { to: string; children: React.ReactNode }) {
   return (
     <NavLink
       to={to}
@@ -46,21 +48,11 @@ export default function AppHeader() {
             <span className="hidden xs:inline">JobPortal</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-2 text-sm">
-            {user ? (
-              <>
-                <NavLinkItem to="/jobs" highlight>
-                  <Briefcase className="w-4 h-4" strokeWidth={2.25} />
-                  Find Jobs
-                </NavLinkItem>
-                <NavLinkItem to="/app">
-                  <LayoutDashboard className="w-4 h-4" strokeWidth={2} />
-                  Dashboard
-                </NavLinkItem>
-              </>
-            ) : (
-              <NavLinkItem to="/login">
-                <Briefcase className="w-4 h-4" />
-                Sign in to browse jobs
+            <FindJobsLink />
+            {user && (
+              <NavLinkItem to="/app">
+                <LayoutDashboard className="w-4 h-4" strokeWidth={2} />
+                Dashboard
               </NavLinkItem>
             )}
           </nav>

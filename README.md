@@ -55,9 +55,17 @@ Resume files use local disk on the API server; on free Render they may reset on 
 
 ## OAuth setup
 
-**Google:** [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Client → redirect URI: `http://localhost:5175/oauth/callback?provider=google`
+**Google:** [Google Cloud Console](https://console.cloud.google.com/) → OAuth 2.0 Client → Authorized redirect URI:
+```
+http://localhost:5175/oauth/callback
+```
 
-**LinkedIn:** [LinkedIn Developer Portal](https://www.linkedin.com/developers/) → redirect URI: `http://localhost:5175/oauth/callback?provider=linkedin`
+**LinkedIn:** [LinkedIn Developer Portal](https://www.linkedin.com/developers/) → Auth → Redirect URLs:
+```
+http://localhost:5175/oauth/callback
+```
+
+Use the same path for production (no query string), e.g. `https://your-app.vercel.app/oauth/callback`.
 
 Set credentials in `backend/.env`.
 

@@ -42,14 +42,14 @@ export default function App() {
     <Routes>
       <Route element={<PublicLayout />}>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/jobs">
+          <Route index element={<JobsPage />} />
+          <Route path=":id" element={<JobDetailPage />} />
+        </Route>
       </Route>
       <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-      <Route path="/jobs" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<JobsPage />} />
-        <Route path=":id" element={<JobDetailPage />} />
-      </Route>
       <Route path="/app" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<DashboardPage />} />
         <Route path="profile" element={<RoleRoute roles={['job_seeker']} permissions={['profile:read']}><ProfilePage /></RoleRoute>} />

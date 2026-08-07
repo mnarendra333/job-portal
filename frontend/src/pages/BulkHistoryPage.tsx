@@ -1,13 +1,28 @@
 import { useEffect, useState } from 'react';
+import Pagination from '@/components/Pagination';
 import { api } from '@/lib/api';
 import type { BulkUploadBatch } from '@/types';
 
 export default function BulkHistoryPage() {
   const [batches, setBatches] = useState<BulkUploadBatch[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 10;
 
   useEffect(() => {
-    api.bulkUploads.mine().then(setBatches).catch(() => setBatches([]));
-  }, []);
+    api.bulkUploads.mine(page, pageSize)
+      .then((res) => {
+        setBatches(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
+      .catch(() => {
+        setBatches([]);
+        setTotal(0);
+        setTotalPages(0);
+      });
+  }, [page]);
 
   return (
     <div>
@@ -33,6 +48,7 @@ export default function BulkHistoryPage() {
         ))}
         {batches.length === 0 && <p className="text-slate-500">No uploads yet.</p>}
       </div>
+      <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} className="mt-6" />
     </div>
   );
 }

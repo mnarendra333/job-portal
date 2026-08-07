@@ -1,6 +1,8 @@
 import base64
 import json
 
+from urllib.parse import quote
+
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -251,14 +253,16 @@ async def oauth_linkedin(
 
 
 def oauth_authorize_url(provider: str, redirect_uri: str, state: str) -> str:
+    encoded_redirect = quote(redirect_uri, safe="")
+    encoded_state = quote(state, safe="")
     if provider == "google":
         if not settings.google_client_id:
             raise ValueError("Google OAuth is not configured")
         params = (
             f"client_id={settings.google_client_id}"
-            f"&redirect_uri={redirect_uri}"
+            f"&redirect_uri={encoded_redirect}"
             f"&response_type=code&scope=openid%20email%20profile"
-            f"&state={state}&access_type=offline"
+            f"&state={encoded_state}&access_type=offline&prompt=select_account"
         )
         return f"https://accounts.google.com/o/oauth2/v2/auth?{params}"
     if provider == "linkedin":
@@ -266,9 +270,9 @@ def oauth_authorize_url(provider: str, redirect_uri: str, state: str) -> str:
             raise ValueError("LinkedIn OAuth is not configured")
         params = (
             f"response_type=code&client_id={settings.linkedin_client_id}"
-            f"&redirect_uri={redirect_uri}"
+            f"&redirect_uri={encoded_redirect}"
             f"&scope=openid%20profile%20email"
-            f"&state={state}"
+            f"&state={encoded_state}"
         )
         return f"https://www.linkedin.com/oauth/v2/authorization?{params}"
     raise ValueError("Unknown provider")

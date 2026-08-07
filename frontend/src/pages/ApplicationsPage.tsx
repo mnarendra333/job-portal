@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import Pagination from '@/components/Pagination';
 import { api } from '@/lib/api';
 import { downloadResume, downloadResumes } from '@/lib/downloadResume';
 import type { Application } from '@/types';
@@ -14,11 +15,34 @@ export default function ApplicationsPage() {
   const [noticePeriod, setNoticePeriod] = useState('');
   const [education, setEducation] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 20;
 
-  const load = () => {
-    if (id) api.jobs.applications(id).then(setApps).catch(() => setApps([]));
-  };
-  useEffect(() => { load(); }, [id]);
+  const load = useCallback(() => {
+    if (!id) return;
+    api.jobs.applications(id, {
+      page,
+      page_size: pageSize,
+      source: filter === 'all' ? undefined : filter,
+      keyword: keyword || undefined,
+      notice_period: noticePeriod || undefined,
+      education: education || undefined,
+    })
+      .then((res) => {
+        setApps(res.items);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+      })
+      .catch(() => {
+        setApps([]);
+        setTotal(0);
+        setTotalPages(0);
+      });
+  }, [id, page, pageSize, filter, keyword, noticePeriod, education]);
+
+  useEffect(() => { load(); }, [load]);
 
   const updateStatus = async (appId: string, status: string) => {
     setApps((prev) => prev.map((a) => (a.id === appId ? { ...a, status } : a)));
@@ -28,18 +52,6 @@ export default function ApplicationsPage() {
       load();
     }
   };
-
-  const filtered = useMemo(() => apps.filter((a) => {
-    if (filter !== 'all' && a.application_source !== filter) return false;
-    if (keyword) {
-      const q = keyword.toLowerCase();
-      const hay = `${a.applicant_name ?? ''} ${a.applicant_email ?? ''} ${a.resume_file_name ?? ''}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (noticePeriod && a.applicant_notice_period !== noticePeriod) return false;
-    if (education && a.applicant_education !== education) return false;
-    return true;
-  }), [apps, filter, keyword, noticePeriod, education]);
 
   const toggle = (appId: string) => {
     setSelected((prev) => {
@@ -57,6 +69,11 @@ export default function ApplicationsPage() {
     load();
   };
 
+  const applyFilters = () => {
+    if (page === 1) load();
+    else setPage(1);
+  };
+
   return (
     <div className="w-full">
       <Link to="/app/jobs" className="text-teal-700 text-sm">← My Jobs</Link>
@@ -69,6 +86,7 @@ export default function ApplicationsPage() {
           className="border rounded-lg px-3 py-2 text-sm"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
         />
         <select className="border rounded-lg px-3 py-2 text-sm" value={noticePeriod} onChange={(e) => setNoticePeriod(e.target.value)}>
           <option value="">Any notice period</option>
@@ -82,22 +100,27 @@ export default function ApplicationsPage() {
             <option key={e} value={e}>{e}</option>
           ))}
         </select>
-        <button
-          type="button"
-          className="text-sm border rounded-lg px-3 py-2 hover:bg-slate-50"
-          onClick={() => { setKeyword(''); setNoticePeriod(''); setEducation(''); }}
-        >
-          Clear filters
-        </button>
+        <div className="flex gap-2">
+          <button type="button" className="text-sm border rounded-lg px-3 py-2 hover:bg-slate-50 flex-1" onClick={applyFilters}>
+            Apply filters
+          </button>
+          <button
+            type="button"
+            className="text-sm border rounded-lg px-3 py-2 hover:bg-slate-50"
+            onClick={() => { setKeyword(''); setNoticePeriod(''); setEducation(''); setPage(1); }}
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
         {(['all', 'direct', 'agency'] as const).map((f) => (
-          <button key={f} type="button" onClick={() => setFilter(f)} className={`px-3 py-1 rounded text-sm ${filter === f ? 'bg-teal-700 text-white' : 'bg-slate-100'}`}>{f}</button>
+          <button key={f} type="button" onClick={() => { setFilter(f); setPage(1); }} className={`px-3 py-1 rounded text-sm ${filter === f ? 'bg-teal-700 text-white' : 'bg-slate-100'}`}>{f}</button>
         ))}
         <button type="button" disabled={selected.size === 0} onClick={() => bulkStatus('shortlisted')} className="text-sm border rounded-lg px-3 py-1 disabled:opacity-40 ml-auto">Shortlist</button>
         <button type="button" disabled={selected.size === 0} onClick={() => bulkStatus('rejected')} className="text-sm border rounded-lg px-3 py-1 disabled:opacity-40">Reject</button>
-        <button type="button" disabled={selected.size === 0} onClick={() => downloadResumes([...selected], filtered)} className="text-sm border rounded-lg px-3 py-1 disabled:opacity-40">Download selected</button>
+        <button type="button" disabled={selected.size === 0} onClick={() => downloadResumes([...selected], apps)} className="text-sm border rounded-lg px-3 py-1 disabled:opacity-40">Download selected</button>
       </div>
 
       <div className="card overflow-hidden">
@@ -121,7 +144,7 @@ export default function ApplicationsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((app) => (
+            {apps.map((app) => (
               <tr key={app.id} className="border-t align-top">
                 <td className="p-2">
                   <input type="checkbox" checked={selected.has(app.id)} onChange={() => toggle(app.id)} />
@@ -163,7 +186,10 @@ export default function ApplicationsPage() {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && <p className="p-4 text-slate-500">No applications match your filters.</p>}
+        {apps.length === 0 && <p className="p-4 text-slate-500">No applications match your filters.</p>}
+        <div className="p-4 border-t">
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPageChange={setPage} />
+        </div>
       </div>
     </div>
   );
